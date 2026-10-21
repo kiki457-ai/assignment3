@@ -115,21 +115,6 @@
             font-size: 0.78rem; color: #8B949E; margin: -6px 0 12px 0; letter-spacing: 0.02em;
         }
 
-        /* NFC status indicator */
-        #nfc-status {
-            position: absolute; left: 50%; top: 70px; transform: translateX(-50%);
-            background: rgba(30, 30, 40, 0.8); border: 1px solid rgba(139, 92, 246, 0.4);
-            border-radius: 20px; padding: 8px 20px; display: flex; align-items: center; gap: 8px;
-            backdrop-filter: blur(10px); font-size: 0.85rem; color: #8B949E;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            z-index: 100;
-        }
-        #nfc-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #6B7280; }
-        #nfc-status.connected { border-color: rgba(110, 231, 183, 0.5); }
-        #nfc-status.connected .dot { background: #6EE7B7; box-shadow: 0 0 8px #6EE7B7; }
-        #nfc-status.error { border-color: rgba(248, 113, 113, 0.5); }
-        #nfc-status.error .dot { background: #F87171; }
-
         .audio-panel {
             display: flex; align-items: center; gap: 8px; background: rgba(30, 30, 40, 0.6);
             border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 30px;
@@ -200,14 +185,15 @@
         .modal-card { width: 90vw; max-width: 500px; padding: 40px; display: flex; flex-direction: column; gap: 20px; pointer-events: auto; }
         .story-text-area { background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; border: 1px solid var(--border-light); min-height: 150px; max-height: 45vh; overflow-y: auto; color: #E2E8F0; font-size: 1.05rem; line-height: 1.8; }
 
-        #nfc-toast {
+        /* Small transient toast, used for placement hints and gentle errors */
+        #toast {
             position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px);
             background: rgba(30, 30, 40, 0.95); border: 1px solid rgba(110, 231, 183, 0.5);
             border-radius: 12px; padding: 12px 24px; color: #6EE7B7; font-size: 0.9rem;
             opacity: 0; transition: all 0.3s ease; pointer-events: none; z-index: 2000;
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
-        #nfc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     </style>
 </head>
@@ -221,7 +207,7 @@
     <div id="webgl-container"></div>
     <canvas id="particles-canvas"></canvas>
     <div id="markers-layer"></div>
-    <div id="nfc-toast"></div>
+    <div id="toast"></div>
 
     <div id="ui-layer">
         <div id="home-ui">
@@ -235,7 +221,6 @@
                 <p><span>🤏 Scroll / pinch</span> zoom the camera</p>
                 <p><span>👆 Drag empty space</span> rotate the island</p>
                 <p><span>👆 Drag a hero</span> drop to place, tap to recall</p>
-                <p><span>📱 NFC tag</span> place a hero automatically</p>
             </div>
             <div class="action-btn-container pointer-auto">
                 <button class="btn-primary" onclick="enterGame()">🚀 Start the mission</button>
@@ -249,10 +234,6 @@
                     <span class="hint-text">Drag a hero onto a location, then press <b>Accept the mission</b></span>
                 </div>
                 <div id="mode-badge" class="mode-badge">Checking connection…</div>
-                <div id="nfc-status">
-                    <span class="dot"></span>
-                    <span class="status-text">NFC idle</span>
-                </div>
                 <div style="display:flex; gap:15px; align-items: center;">
                     <div class="audio-panel">
                         <div class="audio-btn" style="margin-right:0;" onclick="openSettings()">⚙️</div>
@@ -303,11 +284,11 @@
     <div id="settings-modal" class="modal-overlay" onclick="closeModalsOnBg(event)">
         <div class="glass-card modal-card pointer-auto">
             <h2 style="color:#FFF">⚙️ Settings</h2>
-            <p style="color:var(--text-sub)">Both fields are <b>optional</b>. With a Gemini API key and the NFC bridge running, Storypad writes a fresh story with AI. Without them it falls back to the built-in offline story engine, so the interaction still works.</p>
-            <p style="color:var(--text-sub); margin-top:15px;">Gemini API key <span style="opacity:.6">(stored in this browser only)</span></p>
-            <input type="password" id="apiKey" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="Paste your Gemini API key here...">
-            <p style="color:var(--text-sub); margin-top:15px;">NFC bridge address <span style="opacity:.6">(your computer's IP, optional)</span></p>
-            <input type="text" id="nfcBridgeIp" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="Default localhost:8765">
+            <p style="color:var(--text-sub)">Storypad talks to the course AI service (an OpenAI-compatible gateway plus the Easel media API). Both keys below are <b>prefilled with the shared course keys</b>, so the AI features work out of the box. If a key stops working, paste a fresh one here — values are stored in this browser only. If the service is unreachable, the built-in offline story engine answers instead, so the interaction always completes.</p>
+            <p style="color:var(--text-sub); margin-top:15px;">Story gateway key <span style="opacity:.6">(api.ait4x.org — writes the story)</span></p>
+            <input type="password" id="gatewayKey" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="sk-...">
+            <p style="color:var(--text-sub); margin-top:15px;">Easel media key <span style="opacity:.6">(easel.ait4x.org — illustration & AI voice)</span></p>
+            <input type="password" id="easelKey" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="paste the Easel key here...">
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
                 <button class="back-btn" onclick="closeModals()">Cancel</button>
                 <button class="btn-primary" style="padding: 10px 20px" onclick="saveSettings()">Save</button>
@@ -334,44 +315,6 @@
     </div>
 
     <script>
-        // =========================================================
-        // Helper function to convert raw PCM16 audio from Gemini API to playable WAV format
-        // =========================================================
-        function pcmToWav(pcmData, sampleRate) {
-            const numChannels = 1;
-            const bitsPerSample = 16;
-            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
-            const blockAlign = numChannels * (bitsPerSample / 8);
-            const dataSize = pcmData.byteLength;
-            const buffer = new ArrayBuffer(44 + dataSize);
-            const view = new DataView(buffer);
-
-            function writeString(view, offset, string) {
-                for (let i = 0; i < string.length; i++) { view.setUint8(offset + i, string.charCodeAt(i)); }
-            }
-
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, 36 + dataSize, true);
-            writeString(view, 8, 'WAVE');
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true); // PCM format
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, byteRate, true);
-            view.setUint16(32, blockAlign, true);
-            view.setUint16(34, bitsPerSample, true);
-            writeString(view, 36, 'data');
-            view.setUint32(40, dataSize, true);
-
-            const pcmView = new Uint8Array(pcmData);
-            for (let i = 0; i < pcmView.length; i++) {
-                view.setUint8(44 + i, pcmView[i]);
-            }
-
-            return new Blob([view], { type: 'audio/wav' });
-        }
-
         // runs immediately so an early click cannot throw
         (() => {
             if (typeof THREE === 'undefined') {
@@ -410,7 +353,7 @@
             let cameraAngle = 0;      // horizontal camera angle
             let cameraHeight = 300;    // camera height
             let cameraDist = 600;      // camera distance
-            let skipOrbitCalc = false;  // skip orbit maths while the NFC close-up plays
+            let skipOrbitCalc = false;  // skip orbit maths while the zone close-up plays
             let planetTargetRotY = 0;  // target Y rotation of the island
 
             // ── Preset camera system ──
@@ -827,7 +770,7 @@
                 return group;
             }
 
-            // ===== 6. UI and NFC logic =====
+            // ===== 6. UI logic =====
             const markersLayer = document.getElementById('markers-layer');
             const zoneNames = [{n:'Oasis Park',x:112,z:112,c:'#6EE7B7'}, {n:'Knowledge Academy',x:-112,z:112,c:'#93C5FD'}, {n:'Quiet Street',x:-112,z:-112,c:'#A7F3D0'}, {n:'Sunny Community',x:112,z:-112,c:'#FCD34D'}];
             const zoneLabels = zoneNames.map(z => {
@@ -853,9 +796,7 @@
                 });
             }
 
-            function getNfcBridgeUrl() { const ip = localStorage.getItem('nfc_bridge_ip') || 'localhost'; return ip.includes(':') ? `http://${ip}` : `http://${ip}:8765`; }
-            function showNfcToast(msg) { const t = document.getElementById('nfc-toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
-            function updateNfcStatus(status, text) { const el = document.getElementById('nfc-status'); el.className = status; el.querySelector('.status-text').textContent = text; }
+            function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
 
             function findGroundPosition(x, z) {
                 for (let obj of zonesObjects) {
@@ -864,21 +805,6 @@
                 }
                 return new THREE.Vector3(x, flatY + 8, z);
             }
-
-            const nfcZones = {
-                'Oasis Park': { x: 112, z: 112, name: 'Oasis Park' },
-                'Knowledge Academy': { x: -112, z: 112, name: 'Knowledge Academy' },
-                'Quiet Street': { x: -112, z: -112, name: 'Quiet Street' },
-                'Sunny Community': { x: 112, z: -112, name: 'Sunny Community' }
-            };
-            
-            const nfcRoleMap = { 
-                'gardener': { id: 'gardener', name: 'Gardener' }, 
-                'explorer': { id: 'explorer', name: 'Explorer' }, 
-                'chef': { id: 'chef', name: 'Little Chef' }, 
-                'party': { id: 'party', name: 'Party Host' }, 
-                'storyteller': { id: 'storyteller', name: 'Storyteller' } 
-            };
 
             // ── Trigger the preset camera move ──
             function triggerZoneCinema(zoneName, charWorldPos) {
@@ -910,86 +836,6 @@
                 skipOrbitCalc = true;
             }
             // ─────────────────────────────────────────────────────────
-
-            function autoPlaceNfcPiece(charName, role, zoneName) {
-                if (placedPieces[role]) { showNfcToast(`${charName} is already on the island`); return; }
-                
-                // look up the zone; fall back to a random one
-                let zone = nfcZones[zoneName];
-                if (!zone) {
-                    const zoneKeys = Object.keys(nfcZones);
-                    const randomKey = zoneKeys[Math.floor(Math.random() * zoneKeys.length)];
-                    zone = nfcZones[randomKey];
-                    console.warn(`[NFC] unknown zone "${zoneName}", assigned ${zone.name}`);
-                    showNfcToast(`⚠️ Unknown location "${zoneName}" — ${charName} landed at ${zone.name}`);
-                }
-                const localX = zone.x + (Math.random() - 0.5) * 60; 
-                const localZ = zone.z + (Math.random() - 0.5) * 60;
-                const dropPos = findGroundPosition(localX, localZ);
-                if (!dropPos) { showNfcToast(`${charName} could not be placed`); return; }
-
-                const charMesh = createVoxelCharacter(role);
-                charMesh.position.copy(dropPos); charMesh.userData.startY = dropPos.y; charMesh.scale.set(0.01, 0.01, 0.01);
-                planetGroup.add(charMesh);
-
-                const marker = document.createElement('div'); marker.className = 'piece-label-only'; marker.innerHTML = `<div class="map-label">${charName}</div>`; markersLayer.appendChild(marker);
-
-                placedPieces[role] = { el: marker, mesh: charMesh, localPos: dropPos, zoneName: zone.name, charName: charName, fromNfc: true };
-                marker.onclick = () => { marker.remove(); planetGroup.remove(charMesh); delete placedPieces[role]; document.querySelector(`[data-id="${role}"]`).style.opacity='1'; window.playSfx('pickup'); showNfcToast(`${charName} is heading home`); };
-                
-                const dockEl = document.querySelector(`[data-id="${role}"]`); if (dockEl) dockEl.style.opacity = '0';
-                window.playSfx('drop'); showNfcToast(`📱 ${charName} landed at${zone.name}！`);
-                
-                charMesh.userData.isHappy = true; charMesh.userData.animTimer = 0;
-                
-                // Preset camera move: overview of the zone, then push in on the character
-                const charWorldPos = dropPos.clone().applyMatrix4(planetGroup.matrixWorld);
-                triggerZoneCinema(zone.name, charWorldPos);
-            }
-
-            function pollNfcEvent() {
-                fetch(`${getNfcBridgeUrl()}/event`)
-                    .then(res => {
-                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                        return res.json();
-                    })
-                    .then(data => {
-                        nfcFailCount = 0;
-                        console.log('[NFC] data received:', JSON.stringify(data));  // debug log
-                        if (data.event && data.timestamp && data.timestamp > nfcLastEventTime) {
-                            nfcLastEventTime = data.timestamp;
-                            if (data.event === 'place' && data.name && data.role) {
-                                // trust the zone sent by Arduino, fall back to random
-                                const zoneName = data.zone;
-                                console.log(`[NFC] placing ${data.name} at ${zoneName}`);
-                                if (nfcRoleMap[data.role]) autoPlaceNfcPiece(data.name, data.role, zoneName);
-                            } else if (data.event === 'remove' && data.name && data.role) {
-                                const role = data.role;
-                                if (placedPieces[role]) {
-                                    placedPieces[role].el.remove(); planetGroup.remove(placedPieces[role].mesh); delete placedPieces[role];
-                                    const dockEl = document.querySelector(`[data-id="${role}"]`); if (dockEl) dockEl.style.opacity = '1';
-                                    window.playSfx('pickup'); showNfcToast(`${data.name} left the island`);
-                                }
-                            }
-                            fetch(`${getNfcBridgeUrl()}/clear`).catch(() => {});
-                        }
-                        if (data.event && data.event !== 'none') updateNfcStatus('connected', 'NFC connected');
-                    }).catch(err => { 
-                        console.error('[NFC] poll error:', err);
-                        // No reader attached? Back off after a few tries instead of
-                        // hammering a service that is not there every 600 ms.
-                        nfcFailCount++;
-                        if (nfcFailCount === 5) {
-                            stopNfcPolling();
-                            updateNfcStatus('error', 'NFC reader not found — drag heroes to place them');
-                            showNfcToast('NFC reader not connected — place heroes by dragging');
-                        }
-                    });
-            }
-
-            let nfcPollingInterval = null; let nfcLastEventTime = 0; let nfcFailCount = 0;
-            function startNfcPolling() { if (nfcPollingInterval) return; nfcPollingInterval = setInterval(pollNfcEvent, 600); updateNfcStatus('', 'Looking for the NFC reader...'); }
-            function stopNfcPolling() { if (nfcPollingInterval) { clearInterval(nfcPollingInterval); nfcPollingInterval = null; } updateNfcStatus('', 'NFC idle'); }
 
             // ===== 7. Animation loop =====
             function animate() {
@@ -1222,7 +1068,7 @@
             window.toggleAudio = () => {
                 // Missing file: say so, rather than toggling a silent button.
                 if (!bgmAvailable) {
-                    showNfcToast('No bgm.mp3 beside index.html — sound effects still work');
+                    showToast('No bgm.mp3 beside index.html — sound effects still work');
                     return;
                 }
                 if(bgmAudio.paused) { bgmAudio.play(); document.getElementById('audio-toggle-btn').innerText='🔊'; }
@@ -1244,21 +1090,18 @@
                 // start the background music and survive the autoplay policy
                 bgmAudio.play().catch(e => console.warn("Background music was blocked by the browser autoplay policy", e)); 
                 updateModeBadge();
-                detectBridge();
-                setTimeout(() => startNfcPolling(), 1500);
             };
             window.backToHome = () => { 
                 isPlayMode = false; document.getElementById('home-ui').classList.remove('hidden'); document.getElementById('play-ui').classList.remove('active'); 
                 camTargetLook.set(0, 50, 0); cameraHeight = 300; cameraDist = 750; cameraAngle = 0;
                 cinemaState = 'idle'; skipOrbitCalc = false;
-                stopNfcPolling();
                 if (window.speechSynthesis) window.speechSynthesis.cancel();
             };
 
             // Send every hero home at once, so the player can start over.
             window.clearAllPieces = () => {
                 const keys = Object.keys(placedPieces);
-                if (!keys.length) { showNfcToast('No heroes on the island'); return; }
+                if (!keys.length) { showToast('No heroes on the island'); return; }
                 keys.forEach(id => {
                     const p = placedPieces[id];
                     if (p.el) p.el.remove();
@@ -1271,7 +1114,7 @@
                 currentStoryText = '';
                 if (currentStoryAudio) { currentStoryAudio.pause(); currentStoryAudio = null; }
                 window.playSfx('pickup');
-                showNfcToast(`${keys.length} hero${keys.length > 1 ? 'es' : ''} sent home — the island is clear`);
+                showToast(`${keys.length} hero${keys.length > 1 ? 'es' : ''} sent home — the island is clear`);
             };
 
             window.openSettings = () => { document.getElementById('settings-modal').classList.add('show'); window.playSfx('pickup'); };
@@ -1289,19 +1132,71 @@
             
             window.closeModalsOnBg = (e) => { if(e.target.classList.contains('modal-overlay')) window.closeModals(); };
             window.saveSettings = () => { 
-                const apiKeyInput = document.getElementById('apiKey');
-                if (apiKeyInput) {
-                    localStorage.setItem('gemini_api_key_v2', apiKeyInput.value.trim()); 
+                const gwInput = document.getElementById('gatewayKey');
+                const easelInput = document.getElementById('easelKey');
+                // An empty field means "back to the shared course default".
+                if (gwInput) {
+                    const v = gwInput.value.trim();
+                    if (v) localStorage.setItem('gateway_api_key', v); else localStorage.removeItem('gateway_api_key');
                 }
-                localStorage.setItem('nfc_bridge_ip', document.getElementById('nfcBridgeIp').value.trim()); 
+                if (easelInput) {
+                    const v = easelInput.value.trim();
+                    if (v) localStorage.setItem('easel_api_key', v); else localStorage.removeItem('easel_api_key');
+                }
                 window.closeModals(); 
-                // The address may point somewhere new, so re-check the bridge.
-                bridgeOnline = null;
-                detectBridge();
+                // The keys may point somewhere new, so re-check the service.
+                aiServiceOnline = null;
+                probeAiService();
             };
 
             let currentStoryText = "";
             let currentStoryAudio = null;
+            let aiVoiceJob = null;      // in-flight suno-speech request for the current story
+
+            // ===== Course AI service configuration =====
+            // The course provides two OpenAI-compatible endpoints. Keys are
+            // prefilled with the shared course keys and can be overridden in
+            // Settings (stored in this browser only).
+            const DEFAULT_GATEWAY_KEY = 'sk-QkVBT7uLnOPWPjbMRED0Ug';
+            const DEFAULT_EASEL_KEY = 'e8f7c76c3af2ac65b735b197b91da3f960cd29a609f46ac8f1086c87de5f5471';
+            const GATEWAY_BASE = 'https://api.ait4x.org/v1';      // story text + illustration (this origin sends CORS headers)
+            const EASEL_BASE = 'https://easel.ait4x.org/v1';      // media API (no CORS: only reachable outside the browser)
+            const STORY_MODEL = 'openrouter/openai/gpt-6-luna';
+            const IMAGE_MODEL = 'easel/qwen-image-2.1';           // the story gateway proxies the Easel image model
+
+            function gatewayKey() { return localStorage.getItem('gateway_api_key') || DEFAULT_GATEWAY_KEY; }
+            function easelKey() { return localStorage.getItem('easel_api_key') || DEFAULT_EASEL_KEY; }
+
+            // Is the story gateway reachable? A cheap authenticated GET is enough.
+            let aiServiceOnline = null;
+            async function probeAiService() {
+                try {
+                    const ctl = new AbortController();
+                    const timer = setTimeout(() => ctl.abort(), 4000);
+                    const res = await fetch(`${GATEWAY_BASE}/models`, { headers: { 'Authorization': `Bearer ${gatewayKey()}` }, signal: ctl.signal });
+                    clearTimeout(timer);
+                    aiServiceOnline = res.ok;
+                } catch (err) {
+                    aiServiceOnline = false;
+                }
+                updateModeBadge();
+                return aiServiceOnline;
+            }
+
+            function updateModeBadge() {
+                const badge = document.getElementById('mode-badge');
+                if (!badge) return;
+                if (aiServiceOnline === null) {
+                    badge.className = 'mode-badge';
+                    badge.textContent = 'Checking connection…';
+                } else if (aiServiceOnline) {
+                    badge.className = 'mode-badge live';
+                    badge.textContent = 'AI mode — the course AI writes your story';
+                } else {
+                    badge.className = 'mode-badge demo';
+                    badge.textContent = 'Demo mode — offline story engine';
+                }
+            }
 
             // ===== API retry helper =====
             async function fetchWithRetry(url, options, maxRetries = 3) {
@@ -1367,10 +1262,10 @@
             };
 
             // ================= OFFLINE STORY ENGINE =================
-            // Used when the local NFC bridge (which also proxies Gemini) is not
-            // reachable, or when no API key has been saved. It is not a canned
-            // paragraph: the problem comes from the zone, the method comes from
-            // the hero, and any other heroes on the board join in at the climax.
+            // Used when the course AI service is not reachable. It is not a
+            // canned paragraph: the problem comes from the zone, the method
+            // comes from the hero, and any other heroes on the board join in
+            // at the climax.
             const zoneProblems = {
                 'Oasis Park': {
                     call: 'the fountain had stopped and the flower beds around it were starting to droop',
@@ -1451,38 +1346,6 @@
                 ].join('\n\n');
             }
 
-            // Is the local bridge up? It serves both NFC events and the Gemini proxy.
-            let bridgeOnline = null;
-            async function detectBridge() {
-                try {
-                    const ctl = new AbortController();
-                    const timer = setTimeout(() => ctl.abort(), 1200);
-                    const res = await fetch(`${getNfcBridgeUrl()}/event`, { signal: ctl.signal });
-                    clearTimeout(timer);
-                    bridgeOnline = res.ok;
-                } catch (err) {
-                    bridgeOnline = false;
-                }
-                updateModeBadge();
-                return bridgeOnline;
-            }
-
-            function updateModeBadge() {
-                const badge = document.getElementById('mode-badge');
-                if (!badge) return;
-                const hasKey = !!localStorage.getItem('gemini_api_key_v2');
-                if (bridgeOnline === null) {
-                    badge.className = 'mode-badge';
-                    badge.textContent = 'Checking connection…';
-                } else if (bridgeOnline && hasKey) {
-                    badge.className = 'mode-badge live';
-                    badge.textContent = 'AI mode — Gemini writes your story';
-                } else {
-                    badge.className = 'mode-badge demo';
-                    badge.textContent = 'Demo mode — offline story engine';
-                }
-            }
-
             function setStorySource(text, tone) {
                 const el = document.getElementById('story-source');
                 if (!el) return;
@@ -1497,12 +1360,11 @@
                 const btnRead = document.getElementById('btn-read');
                 const btnDraw = document.getElementById('btn-draw');
                 const btnRetry = document.getElementById('btn-retry');
-                const apiKey = localStorage.getItem('gemini_api_key_v2') || ""; 
-                
                 if (currentStoryAudio) {
                     currentStoryAudio.pause();
                     currentStoryAudio = null;
                 }
+                aiVoiceSeq++; // invalidate any in-flight voice for the previous story
 
                 modal.classList.add('show'); 
                 btnRead.style.display = 'none';
@@ -1520,20 +1382,15 @@
 
                 content.innerHTML = `<span style="color:#8B5CF6; font-weight:bold;">⚡ Picking up the call for help...</span>`;
 
-                // Which engine answers? The AI path needs both a reachable bridge
-                // (it proxies the Gemini call) and a saved key. Otherwise the
-                // offline engine answers, so the loop always completes.
-                const online = await detectBridge();
-                if (!online || !apiKey) {
+                // Which engine answers? The AI path needs a reachable story
+                // gateway. Otherwise the offline engine answers, so the loop
+                // always completes.
+                const online = await probeAiService();
+                if (!online) {
                     await new Promise(r => setTimeout(r, 450));
                     currentStoryText = buildOfflineStory(piecesArray);
                     content.innerText = currentStoryText;
-                    setStorySource(
-                        !online
-                            ? 'Offline story engine — the local NFC bridge is not running, so the built-in engine answered instead.'
-                            : 'Offline story engine — add a Gemini API key in Settings for a freshly written story.',
-                        'demo'
-                    );
+                    setStorySource('Offline story engine — the course AI service is not reachable, so the built-in engine answered instead.', 'demo');
                     btnRead.style.display = 'block';
                     btnRetry.style.display = 'inline-block';
                     window.playSfx('drop');
@@ -1548,43 +1405,41 @@
                         return `${p.charName} (${identity}) at ${zone}`;
                     }).join(', ');
                     const mainChar = piecesArray[0];
-                    const mainIdentity = mainChar ? roleIdentity[mainChar.id] || 'a helpful young friend' : 'a helpful young friend';
 
                     const prompt = `${mainChar?.charName || 'The young hero'} just got a call for help — this is exactly what ${mainChar?.charName || 'the hero'} is good at. In the scene: ${charList}. Write one complete story of roughly 200 words with a clear shape: a beginning where the call for help arrives, a middle where a real small difficulty gets in the way, a turning point where the hero's particular strength is what saves the day, and an ending where the problem is genuinely solved. Let each character's own strength matter at the critical moment. Keep the language plain and natural with some short dialogue, and move between places only when there is a reason to. Output the story only, with no title.`;
-                    const { response, data, responseText } = await fetchWithRetry(
-                        `${getNfcBridgeUrl()}/proxy/gemini/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+                    const { data } = await fetchWithRetry(
+                        `${GATEWAY_BASE}/chat/completions`,
                         {
                             method: "POST", 
-                            headers: { "Content-Type": "application/json" },
+                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${gatewayKey()}` },
                             body: JSON.stringify({ 
-                                contents: [{ parts: [{ text: prompt }] }], 
-                                systemInstruction: { 
-                                    parts: [{ 
-                                        text: "You write everyday stories for young children. Keep the language plain and natural, with short dialogue and small concrete details, the kind of thing a primary school child could really experience. Do not write a fairy tale or an essay - there must be a real difficulty and a turning point. Always refer to each character by the exact name you were given (for example Gardener, Explorer, Little Chef, Party Host, Storyteller) and never swap them for invented names." 
-                                    }] 
-                                } 
+                                model: STORY_MODEL,
+                                messages: [
+                                    { role: "system", content: "You write everyday stories for young children. Keep the language plain and natural, with short dialogue and small concrete details, the kind of thing a primary school child could really experience. Do not write a fairy tale or an essay - there must be a real difficulty and a turning point. Always refer to each character by the exact name you were given (for example Gardener, Explorer, Little Chef, Party Host, Storyteller) and never swap them for invented names." },
+                                    { role: "user", content: prompt }
+                                ],
+                                max_tokens: 800
                             })
                         }
                     );
                     
-                    currentStoryText = data.candidates[0].content.parts[0].text;
-                    if (currentStoryText) { 
-                        content.innerText = currentStoryText; 
-                        setStorySource('Written just now by Gemini.', 'live');
-                        btnRead.style.display = 'block'; 
-                        btnDraw.style.display = 'block'; 
-                        window.playSfx('drop'); 
-                    }
+                    currentStoryText = (data.choices?.[0]?.message?.content || '').trim();
+                    if (!currentStoryText) throw new Error('the AI returned an empty story');
+                    content.innerText = currentStoryText; 
+                    setStorySource(`Written just now by the course AI service (${STORY_MODEL}).`, 'live');
+                    btnRead.style.display = 'block'; 
+                    btnDraw.style.display = 'block'; 
+                    window.playSfx('drop'); 
                 } catch (error) {
                     console.error('[API] story generation failed', error);
                     let errorMsg = error.message || 'Unknown error';
                     
                     if (errorMsg.includes('503') || errorMsg.includes('high demand')) {
-                        errorMsg = 'The story tower is busy — the Gemini server is overloaded right now.';
+                        errorMsg = 'The story tower is busy — the AI server is overloaded right now.';
                     } else if (errorMsg.includes('API key') || errorMsg.includes('API_KEY')) {
                         errorMsg = 'That API key is invalid or expired — open Settings and paste a new one.';
-                    } else if (errorMsg.includes('quota')) {
-                        errorMsg = 'The API quota is used up — try again later or use a different key.';
+                    } else if (errorMsg.includes('quota') || errorMsg.includes('credit')) {
+                        errorMsg = 'The API quota is used up — try again later.';
                     }
 
                     // The mission still gets told. Fall back to the offline engine
@@ -1599,7 +1454,6 @@
 
             window.generateImage = async () => {
                 window.playSfx('pickup');
-                const apiKey = localStorage.getItem('gemini_api_key_v2') || ""; 
                 const imgEl = document.getElementById('generatedImage'); 
                 const btnDraw = document.getElementById('btn-draw');
                 imgEl.src = ""; 
@@ -1621,32 +1475,25 @@
                 
                 btnDraw.classList.add('btn-disabled');
 
-                // The illustration also goes through the bridge proxy, so it needs
-                // both the bridge and a key. Say so plainly instead of failing later.
-                if (!(bridgeOnline && apiKey)) {
-                    loadingText.style.color = '#FBBF24';
-                    loadingText.innerText = bridgeOnline
-                        ? "🎨 Illustration needs a Gemini API key — add one in Settings."
-                        : "🎨 Illustration needs the local NFC bridge running. The story itself works fine without it.";
-                    btnDraw.classList.remove('btn-disabled');
-                    return;
-                }
-                
+                // The illustration comes from the course gateway's proxy of the
+                // Easel Qwen-Image model, which returns a base64 PNG synchronously
+                // — it just takes around twenty seconds.
                 try {
                     const characters = Object.values(placedPieces).map(p => p.charName).join(' and ');
-                    const prompt = `ABSOLUTELY NO TEXT, NO WORDS, NO TYPOGRAPHY, NO WRITING, NO LETTERS, NO NUMBERS anywhere in the image. A cute, magical voxel-style isometric 3D illustration of ${characters} in a toy map environment. Pure visual scene only - no written language, no signs, no labels, no books with readable text, no text on clothing. Toy-like, colorful, tilt-shift photography style.`;
+                    const prompt = `ABSOLUTELY NO TEXT, NO WORDS, NO TYPOGRAPHY, NO WRITING, NO LETTERS, NO NUMBERS anywhere in the image. A cute 3D cartoon illustration of ${characters} on a whimsical toy-like island, rounded soft shapes, gentle morandi colour palette, soft studio lighting, tilt-shift photography style. Pure visual scene only - no written language, no signs, no labels.`;
                     
-                    const { response, data, responseText } = await fetchWithRetry(
-                        `${getNfcBridgeUrl()}/proxy/gemini/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
+                    const { data } = await fetchWithRetry(
+                        `${GATEWAY_BASE}/images/generations`,
                         {
                             method: 'POST', 
-                            headers: { 'Content-Type': 'application/json' }, 
-                            body: JSON.stringify({ instances: { prompt: prompt }, parameters: { sampleCount: 1 } })
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${gatewayKey()}` }, 
+                            body: JSON.stringify({ model: IMAGE_MODEL, prompt: prompt, size: '1024x1024', n: 1 })
                         }
                     );
                     
-                    if (data.predictions && data.predictions[0]) {
-                        imgEl.src = `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
+                    const b64 = data?.data?.[0]?.b64_json;
+                    if (b64) {
+                        imgEl.src = `data:image/png;base64,${b64}`;
                         imgEl.style.display = 'inline-block';
                         window.playSfx('drop');
                     } else {
@@ -1680,8 +1527,8 @@
             window.readStory = async () => {
                 if (!currentStoryText) return;
                 const btnRead = document.getElementById('btn-read'); 
-                const apiKey = localStorage.getItem('gemini_api_key_v2') || ""; 
 
+                // An AI clip already exists for this story: play/pause it.
                 if (currentStoryAudio) {
                     if (currentStoryAudio.paused) {
                         if (currentStoryAudio.currentTime >= currentStoryAudio.duration) {
@@ -1696,10 +1543,10 @@
                     return;
                 }
 
-                // No AI clip yet. The browser can read the story aloud on its own,
-                // so when there is no bridge or no key we narrate locally instead
-                // of leaving the button dead.
-                if (!(bridgeOnline && apiKey) && window.speechSynthesis) {
+                // No AI clip yet. The browser narrator starts right away so the
+                // button is never dead, while the course Suno voice renders a
+                // proper reading in the background and takes over when ready.
+                if (window.speechSynthesis) {
                     if (window.speechSynthesis.speaking) {
                         if (window.speechSynthesis.paused) {
                             window.speechSynthesis.resume();
@@ -1711,55 +1558,78 @@
                         return;
                     }
                     speakWithBrowser(currentStoryText, btnRead);
-                    return;
                 }
 
-                btnRead.innerText = "🔊 Preparing the audio...";
-                btnRead.classList.add('btn-disabled');
-
-                try {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: "Read this aloud in a warm, gentle voice: " + currentStoryText }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } }, model: "gemini-2.5-flash-preview-tts" })
-                    });
-                    
-                    const responseText = await response.text();
-                    if (!responseText) throw new Error("the API returned an empty response");
-                    const data = JSON.parse(responseText);
-                    if (!response.ok) throw new Error(data.error?.message || "Request failed");
-                    
-                    const base64Audio = data.candidates[0].content.parts[0].inlineData.data;
-                    const mimeType = data.candidates[0].content.parts[0].inlineData.mimeType || "audio/L16; rate=24000";
-                    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-                    const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1]) : 24000;
-                    
-                    const binaryString = window.atob(base64Audio);
-                    const pcmData = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        pcmData[i] = binaryString.charCodeAt(i);
-                    }
-
-                    const wavBlob = pcmToWav(pcmData.buffer, sampleRate);
-                    const audioUrl = URL.createObjectURL(wavBlob);
-                    
-                    currentStoryAudio = new Audio(audioUrl); 
-                    currentStoryAudio.play();
-                    
-                    btnRead.innerText = "🔊 Playing the story...";
-                    currentStoryAudio.onended = () => { 
-                        btnRead.innerText = "🎵 Listen again"; 
-                    };
-                } catch (e) {
-                    console.error("TTS failed", e);
-                    if (window.speechSynthesis) {
-                        speakWithBrowser(currentStoryText, btnRead);
-                    } else {
-                        btnRead.innerText = "🎵 Listen again (error)";
-                    }
-                } finally {
-                    btnRead.classList.remove('btn-disabled');
-                }
+                startAiVoice(currentStoryText, btnRead);
             };
+
+            // ── Background AI narration (course Suno voice) ──
+            // The Easel audio endpoint drives a shared browser session:
+            // submit → 202 with track ids → poll each track until complete →
+            // ask the server to download it → stream the saved file back.
+            // It usually takes one to three minutes, which is why the browser
+            // narrator always goes first.
+            //
+            // Known limitation: the Easel media endpoint currently sends no CORS
+            // headers and the shared story key is not allowed the audio models,
+            // so from a static page this request is refused by the browser. The
+            // failure is caught silently — the browser narrator keeps reading —
+            // and if the course later opens the audio model on this key, the
+            // same code starts working without any change.
+            let aiVoiceSeq = 0;
+            async function startAiVoice(text, btn) {
+                if (aiVoiceJob) return;                       // one voice job at a time
+                const seq = ++aiVoiceSeq;
+                aiVoiceJob = (async () => {
+                    try {
+                        const { data } = await fetchWithRetry(`${EASEL_BASE}/audio/generations`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${easelKey()}` },
+                            body: JSON.stringify({
+                                model: 'suno-speech',
+                                prompt: text,
+                                tone: 'a warm, gentle storyteller reading a bedtime story to young children',
+                                background_music: false
+                            })
+                        }, 0);   // a CORS refusal is deterministic — don't retry
+                        const songId = data?.songs?.[0]?.id;
+                        if (!songId) throw new Error('the voice service accepted the job but returned no track');
+
+                        // Poll the track until Suno finishes rendering it.
+                        let track = null;
+                        for (let i = 0; i < 60; i++) {
+                            await new Promise(r => setTimeout(r, 5000));
+                            if (seq !== aiVoiceSeq) return;    // a newer story took over
+                            const res = await fetch(`${EASEL_BASE}/audio/tracks/${songId}`, { headers: { 'Authorization': `Bearer ${easelKey()}` } });
+                            track = await res.json();
+                            if (track.status === 'complete') break;
+                            if (track.status === 'error' || track.status === 'failed') throw new Error('the voice service reported an error for this track');
+                        }
+                        if (!track || track.status !== 'complete') throw new Error('the voice service took too long');
+
+                        // Save the audio server-side, then stream it back.
+                        await fetch(`${EASEL_BASE}/audio/tracks/${songId}/download`, { method: 'POST', headers: { 'Authorization': `Bearer ${easelKey()}` } });
+                        const audioRes = await fetch(`${EASEL_BASE}/audio/tracks/${songId}/content`, { headers: { 'Authorization': `Bearer ${easelKey()}` } });
+                        if (!audioRes.ok) throw new Error('could not fetch the finished audio');
+                        const blob = await audioRes.blob();
+
+                        if (seq !== aiVoiceSeq) return;        // stale, a new story is showing
+                        const audioUrl = URL.createObjectURL(blob);
+                        currentStoryAudio = new Audio(audioUrl);
+                        // swap the browser narrator for the AI voice
+                        if (window.speechSynthesis) window.speechSynthesis.cancel();
+                        currentStoryAudio.play().catch(() => {});
+                        btn.innerText = "🔊 Playing the story...";
+                        currentStoryAudio.onended = () => { btn.innerText = "🎵 Listen again"; };
+                    } catch (e) {
+                        console.warn('[VOICE] AI narration unavailable:', e.message || e);
+                        // The browser narrator is still playing, so the story
+                        // is never silent — no need to alarm the player.
+                    } finally {
+                        if (seq === aiVoiceSeq) aiVoiceJob = null;
+                    }
+                })();
+            }
 
             function speakWithBrowser(text, btn) {
                 const u = new SpeechSynthesisUtterance(text);
@@ -1773,11 +1643,11 @@
             }
 
             window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
-            const savedKey = localStorage.getItem('gemini_api_key_v2'); if(savedKey) document.getElementById('apiKey').value = savedKey;
-            const savedNfcIp = localStorage.getItem('nfc_bridge_ip'); if(savedNfcIp) document.getElementById('nfcBridgeIp').value = savedNfcIp;
-            // Probe the bridge once on load so the badge is ready by the time
+            const savedGwKey = localStorage.getItem('gateway_api_key') || DEFAULT_GATEWAY_KEY; if (savedGwKey) document.getElementById('gatewayKey').value = savedGwKey;
+            const savedEaselKey = localStorage.getItem('easel_api_key') || DEFAULT_EASEL_KEY; if (savedEaselKey) document.getElementById('easelKey').value = savedEaselKey;
+            // Probe the AI service once on load so the badge is ready by the time
             // the player reaches the board.
-            detectBridge();
+            probeAiService();
         })();
     </script>
 </body>

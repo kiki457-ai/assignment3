@@ -3,7 +3,7 @@
 An interactive story board. You drop a hero onto a place, ask for the mission, and the
 island tells you a story about what happened there.
 
-![Storypad: the mission story open in demo mode, with the offline engine's note under the heading](assets/screenshot.png)
+![Storypad: the mission story written by the course AI service, with its generated illustration](assets/screenshot.png)
 
 ---
 
@@ -16,9 +16,9 @@ reader; you tap a token onto a spot on the board and the story responds.
 For this assignment I took that same interaction and rebuilt the part that matters — the
 loop between *placing a character*, *the programme responding*, and *the feedback you get
 back* — as a single web page that anyone can open. The board is now a 3D island with four
-places on it. Everything driven by hardware in the original (placing, recalling, moving
-between places) is done with the mouse or a finger here, so the interaction can be tested
-without any equipment.
+places on it. Everything the hardware did in the original (placing, recalling, moving
+between places) is done with the mouse or a finger here, and the NFC hardware path has
+been removed entirely, so the interaction can be tested with nothing but a browser.
 
 ## Who it is for
 
@@ -49,8 +49,10 @@ not the same story with the names swapped.
 
 The board always completes the loop. What changes is *which engine writes the story*:
 
-- **AI mode** — with a Gemini API key and the local NFC bridge running, the story is
-  written on the spot by `gemini-2.5-flash`, customised to the exact cast you placed.
+- **AI mode** — the story is written on the spot by the course AI service
+  (`gpt-6-luna` through the shared course gateway), customised to the exact cast you
+  placed. The keys ship with the page, so AI mode is the default; if the service is
+  unreachable the badge flips to demo mode by itself.
 - **Demo mode** — without either of those, the built-in offline story engine answers. It
   is a real generator, not a canned paragraph: it pulls the problem from the zone you
   dropped on and the method from the hero you dropped, then assembles a five-beat story
@@ -85,13 +87,10 @@ dependency is Three.js r128, loaded from `cdnjs.cloudflare.com` in the `<head>`.
 CDN is blocked, the 3D board will not appear and the page shows a plain error message
 instead of a blank screen.
 
-**Optional: AI mode.** Two extra steps, both skippable:
-
-1. Paste a Gemini API key into **⚙️ Settings**. It is kept in `localStorage` in your own
-   browser and is never sent anywhere except to the Google endpoint.
-2. Run the NFC bridge on `localhost:8765`. It is the small Python service from the
-   graduation project; it also proxies the Gemini calls, which is why AI mode needs it.
-   Without it the page falls back to demo mode after about a second.
+**Optional: AI mode.** Nothing to set up — the shared course keys are already filled in
+and the page probes the service on load. If a key is ever rotated, paste the new one into
+**⚙️ Settings**; it is kept in `localStorage` in your own browser and is never sent
+anywhere except to the course endpoints. Clearing both fields restores the defaults.
 
 **Optional: background music.** The original track is not mine to publish, so no audio
 file is included. Name any mp3 `bgm.mp3` and put it next to `index.html` and it will play,
@@ -103,24 +102,32 @@ sound effects still work.
 The board and the 3D island existed before this assignment. What I added here:
 
 - **The offline story engine**, so the interaction completes with no server and no key.
-- **Bridge detection and the mode badge**, so the player always knows which engine is
+- **Service detection and the mode badge**, so the player always knows which engine is
   answering instead of staring at a failed request.
 - **Graceful failure**: every AI failure falls back to a story rather than an error, and
   shows a 🔄 Try again button.
 - **↺ Clear all**, a single reset after watching someone hunt for the individual recall
   targets during a trial.
 - **Missing-file handling** for the optional `bgm.mp3`.
-- **Demo-mode narration** through the browser's own speech synthesis, so 🎵 Listen works
-  with no API key.
+- **Narration** through the browser's own speech synthesis, so 🎵 Listen works with no
+  setup at all.
 - The whole interface translated into English.
+- The NFC hardware path removed, and the AI calls moved from a local proxy to the
+  course-provided AI endpoints, so everything runs from a static page.
 
 See [PROCESS.md](PROCESS.md) for the design decisions and the user trial behind these.
 
 ## Known limitations
 
-- **The illustration button needs AI mode.** There is no offline picture generator, so
-  🎨 Draw illustration explains what is missing rather than drawing something. The story
-  itself is unaffected.
+- **The illustration button needs the course AI service.** There is no offline picture
+  generator, so if the service is unreachable 🎨 Draw illustration explains what is
+  missing rather than drawing something. The story itself is unaffected.
+- **Narration uses the browser's built-in voice.** The course media API also offers a
+  Suno voice, but from a static page the browser is not allowed to call it (the endpoint
+  sends no CORS headers and the shared story key is not opened for the audio models), so
+  the page reads stories with `speechSynthesis` instead. The Suno path is implemented in
+  the code and degrades silently; if the course ever opens that model up, the AI voice
+  starts working with no code change.
 - **Demo mode has a fixed vocabulary.** It draws on 4 places × 5 heroes plus the
   combinations between them, so it will repeat if you try the same pair twice. AI mode
   does not have this limit.
@@ -130,8 +137,6 @@ See [PROCESS.md](PROCESS.md) for the design decisions and the user trial behind 
   story is not.
 - **Touch is supported but tuned for desktop.** Dragging works on a touchscreen, and the
   dock is sized for a mouse.
-- **The NFC hardware path is not testable from the repository.** The bridge expects an
-  Arduino on a serial port; without it, the mouse does the same job.
 
 ## Files
 
@@ -148,4 +153,4 @@ CREDITS.md            borrowed code, data and media
 
 See [CREDITS.md](CREDITS.md). Summary: Three.js (MIT) for the 3D board; the hero
 portraits and the mission illustrations are AI-generated; the story text is generated by
-Gemini in AI mode and by the built-in engine in demo mode.
+the course AI service in AI mode and by the built-in engine in demo mode.

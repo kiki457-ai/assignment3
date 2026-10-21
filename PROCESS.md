@@ -37,10 +37,11 @@ interaction just stopped.
 
 So I split the response into two layers:
 
-- **Detection.** On entering the board, `detectBridge()` tries the local bridge with a
-  1.2 second timeout. That single boolean, plus whether a key is saved, decides whether
-  the AI path is available at all.
-- **Fallback.** If it is not — or if the AI call throws for any reason —
+- **Detection.** On load the page probes the course AI service with a cheap
+  authenticated request (`probeAiService()`), and again whenever the keys change. That
+  single boolean decides whether the AI path is available at all.
+- **Fallback.** If the service is not reachable — or if the AI call throws for any
+  reason —
   `buildOfflineStory()` answers instead. It is a real generator: the problem comes from
   `zoneProblems[zone]`, the method from `heroBeats[hero]`, and any other heroes on the
   board are woven in at the climax. Four places × five heroes, with the extra-hero line on
@@ -48,7 +49,7 @@ So I split the response into two layers:
 
 The part I care about most is the labelling. Every story says where it came from — a badge
 at the top of the screen for the current mode, and a line under the story heading for that
-particular story. If the bridge was down, it says the bridge was down. If the key was
+particular story. If the service was down, it says the service was down. If the key was
 rejected, it says the key was rejected and then still tells you a story. Nobody has to
 guess whether what they are reading is the AI or the fallback.
 
@@ -90,26 +91,28 @@ Three short paragraphs, no names needed:
 
 ### A change already made from my own testing
 
-Before handing it to anyone else, I ran the board myself and hit two things worth fixing:
+Before handing it to anyone else, I ran the board myself and hit things worth fixing:
 
 - Clearing the board meant hunting for and tapping each placed figure individually on a
   slowly spinning island — easy to miss a small target. That is why **↺ Clear all** exists
   next to the mission button. Individual recall by tapping a figure is still there for
   removing one hero; the reset is for starting over.
-- With no bridge running, the page probed it every 600 ms and filled the browser console
-  with failed requests. Invisible to a player, but noisy and unfair on the machine. The
-  polling now backs off after five consecutive failures and the status pill says plainly
-  that the reader is not connected, so the page settles down in demo mode instead of
-  quietly hammering a service that is not there.
+- The first wiring of the illustration button called the course media endpoint directly
+  and died with a bare "Failed to fetch". The cause was not the code but the endpoint:
+  the media API sends no CORS headers, so a static page is not allowed to read its
+  responses. Rather than routing traffic through a third-party proxy, the fix was to use
+  the story gateway's own proxy of the same image model, which is CORS-enabled — the
+  illustration now works from the page with no extra service, and the limitation is
+  documented instead of hidden.
 
 ## AI tools
 
 I used AI tools, so here is the honest account.
 
-**Claude Code (used for this assignment).** Used for the code changes described above —
-the offline story engine structure, the bridge detection and mode badge, the fallback
-wiring in `generateStory` / `generateImage` / `readStory`, the `↺ Clear all` reset, and the
-first drafts of this README and PROCESS file.
+**CodeBuddy, an AI coding agent (used for this assignment).** Used for the code changes
+described above — the offline story engine structure, the service detection and mode
+badge, the fallback wiring in `generateStory` / `generateImage` / `readStory`, the
+`↺ Clear all` reset, and the first drafts of this README and PROCESS file.
 
 - **A suggestion I kept.** When the AI call fails, fall back to the offline engine and
   label the story's origin, rather than showing an error and stopping. My instinct was to
@@ -125,16 +128,26 @@ first drafts of this README and PROCESS file.
   hand in the specific functions that needed them. The scripts are kept in the repository
   so the history shows what was done.
 
-**Gemini (used at runtime, by the page).** In AI mode the story is written by
-`gemini-2.5-flash`, illustrations by `imagen-4.0`, and narration by
-`gemini-2.5-flash-preview-tts`. This is described in the README and is entirely optional.
+**The course AI service (used at runtime, by the page).** The course provides an
+OpenAI-compatible gateway plus an Easel media API. In AI mode the story is written by
+`gpt-6-luna` through the gateway, and illustrations by `qwen-image-2.1` (via the
+gateway's proxy of the Easel image model, because the media API itself is not callable
+from a browser). Narration uses the browser's built-in `speechSynthesis`; the media API
+also offers a Suno voice, but it is not callable from a static page (no CORS headers,
+and the shared key is not opened for the audio models), so that path is implemented and
+documented as a silent fallback. This is described in the README and degrades to the
+offline engine whenever the service is unreachable.
 
 **Vidu Q3 (used in the graduation project, not in this repository).** Used to make the
 concept video for the wider project. No output from it ships here.
 
 ## Repository hygiene
 
-Checked before committing: no API keys in the source (the key is entered by the user and
-kept in `localStorage`, never written to a file), no personal information, no recordings
-of other people. The original background music track is deliberately excluded because I do
-not have the right to publish it — the page handles the missing file instead.
+Checked before committing: no personal information, no recordings of other people. The
+one deliberate exception worth stating plainly: the **shared course API keys are included
+in the source**, because the assignment's AI features are meant to run out of the box for
+whoever opens the page and the keys are class-issued, not personal. They can be
+overridden in the in-page Settings, and values typed there stay in `localStorage` and are
+never written to a file. The original background music track is deliberately excluded
+because I do not have the right to publish it — the page handles the missing file
+instead, and any royalty-free track named `bgm.mp3` dropped next to `index.html` plays.
