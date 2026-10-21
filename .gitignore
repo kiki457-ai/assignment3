@@ -1,0 +1,11 @@
+# local dev artifacts
+.playwright-cli/
+_tools/server.log
+_tools/check.js
+_tools/remaining.txt
+_tools/index.zh.backup.html
+nohup.out
+
+# OS noise
+Thumbs.db
+.DS_Store

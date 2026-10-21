@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Storypad - 任务小英雄</title>
+    <!-- 使用稳定的 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        /* =========================================================
+           高级极简 UI 设计 (暗色调 Glassmorphism)
+           ========================================================= */
+        :root {
+            --bg-dark: #05080F; 
+            --panel-bg: rgba(255, 255, 255, 0.08); 
+            --border-light: rgba(255, 255, 255, 0.15);
+            --text-main: #FFFFFF;
+            --text-sub: #E2E8F0;
+            --accent-gradient: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+            --glow-color: rgba(139, 92, 246, 0.8);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body { 
+            background-color: var(--bg-dark); 
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif; 
+            overflow: hidden; 
+            height: 100vh; 
+            color: var(--text-main); 
+            touch-action: none; 
+            overscroll-behavior: none;
+        }
+
+        #webgl-container { position: absolute; inset: 0; z-index: 1; }
+        #particles-canvas { position: absolute; inset: 0; z-index: 2; pointer-events: none; mix-blend-mode: screen; }
+        #ui-layer { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+        .pointer-auto { pointer-events: auto; }
+
+        .glass-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255,255,255,0.05); 
+        }
+
+        #error-screen {
+            position: fixed; inset: 0; background: var(--bg-dark); z-index: 99999;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 30px; color: var(--text-main);
+        }
+        #error-screen h2 { color: #F87171; margin-bottom: 20px; font-size: 2rem; }
+        #error-screen p { color: var(--text-sub); line-height: 1.8; margin-bottom: 10px; }
+
+        #home-ui { position: absolute; inset: 0; display: flex; flex-direction: column; transition: opacity 0.8s ease; pointer-events: none; }
+        #home-ui.hidden { opacity: 0; }
+
+        .title-card { position: absolute; top: 30px; left: 30px; padding: 20px 24px; min-width: 240px; }
+        .title-card h1 { font-size: 1.5rem; font-weight: 800; color: #6EE7B7; margin-bottom: 6px; letter-spacing: 0.5px; text-shadow: 0 0 20px rgba(110,231,183,0.4); } 
+        .title-card p { font-size: 0.85rem; color: var(--text-sub); display: flex; align-items: center; gap: 6px; font-weight: 500; }
+
+        .info-btn { 
+            position: absolute; top: 30px; right: 30px; width: 44px; height: 44px; 
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+            font-size: 1.2rem; cursor: pointer; transition: all 0.3s ease; border: 1px solid var(--border-light);
+            background: rgba(255,255,255,0.05); color: var(--text-sub);
+        }
+        .info-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-main); transform: scale(1.05); box-shadow: 0 0 15px var(--glow-color); }
+
+        .controls-card { position: absolute; bottom: 30px; left: 30px; padding: 20px; font-size: 0.85rem; color: rgba(255, 255, 255, 0.9); line-height: 1.8; font-weight: 400; }
+        .controls-card h4 { color: var(--text-main); font-size: 0.75rem; letter-spacing: 2px; margin-bottom: 12px; text-transform: uppercase; font-weight: 600; }
+        .controls-card span { display: inline-block; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 6px; color: #FFFFFF; font-weight: 400; margin-right: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+        .action-btn-container { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 100; }
+        .btn-primary {
+            background: var(--accent-gradient); color: #FFF; border: 1px solid rgba(255,255,255,0.2);
+            padding: 16px 40px; border-radius: 30px; font-size: 1.1rem; font-weight: 600;
+            cursor: pointer; display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4), inset 0 2px 5px rgba(255,255,255,0.3); 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden;
+        }
+        .btn-primary:active { transform: translateY(2px) scale(0.98); }
+        .btn-disabled { opacity: 0.6; cursor: not-allowed; pointer-events: none; filter: grayscale(0.5); }
+
+        #play-ui { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 0.8s ease; display: flex; flex-direction: column; }
+        #play-ui.active { opacity: 1; }
+
+        .top-bar { padding: 20px 30px; display: flex; justify-content: space-between; align-items: center; position: relative; }
+        .back-btn { background: transparent; border: none; color: var(--text-sub); font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; font-family: inherit; pointer-events: auto; }
+        .back-btn:hover { color: var(--text-main); text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+        
+        .hint-box {
+            position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+            background: rgba(30, 30, 40, 0.6); border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 20px; padding: 12px 32px; display: none; align-items: center;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        @media (min-width: 768px) { .hint-box { display: flex; } }
+        .hint-text { color: rgba(255, 255, 255, 0.7); font-size: 0.9rem; font-weight: 400; letter-spacing: 0.5px; }
+
+        /* Mode badge: tells the player whether the AI or the offline engine is answering */
+        .mode-badge {
+            position: absolute; left: 50%; top: 24px; transform: translateX(-50%);
+            background: rgba(30, 30, 40, 0.8); border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 20px; padding: 6px 16px; font-size: 0.78rem; letter-spacing: 0.02em;
+            color: #8B949E; backdrop-filter: blur(10px); white-space: nowrap; z-index: 100;
+        }
+        .mode-badge.demo { border-color: rgba(251, 191, 36, 0.55); color: #FBBF24; }
+        .mode-badge.live { border-color: rgba(110, 231, 183, 0.55); color: #6EE7B7; }
+
+        .story-source {
+            font-size: 0.78rem; color: #8B949E; margin: -6px 0 12px 0; letter-spacing: 0.02em;
+        }
+
+        /* NFC status indicator */
+        #nfc-status {
+            position: absolute; left: 50%; top: 70px; transform: translateX(-50%);
+            background: rgba(30, 30, 40, 0.8); border: 1px solid rgba(139, 92, 246, 0.4);
+            border-radius: 20px; padding: 8px 20px; display: flex; align-items: center; gap: 8px;
+            backdrop-filter: blur(10px); font-size: 0.85rem; color: #8B949E;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 100;
+        }
+        #nfc-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #6B7280; }
+        #nfc-status.connected { border-color: rgba(110, 231, 183, 0.5); }
+        #nfc-status.connected .dot { background: #6EE7B7; box-shadow: 0 0 8px #6EE7B7; }
+        #nfc-status.error { border-color: rgba(248, 113, 113, 0.5); }
+        #nfc-status.error .dot { background: #F87171; }
+
+        .audio-panel {
+            display: flex; align-items: center; gap: 8px; background: rgba(30, 30, 40, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 30px;
+            padding: 5px 15px 5px 5px; backdrop-filter: blur(10px);
+            pointer-events: auto; /* 确保控制面板可以点击 */
+        }
+        .audio-btn {
+            width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; cursor: pointer; transition: all 0.3s ease; background: rgba(255, 255, 255, 0.05); color: var(--text-sub);
+        }
+        .audio-btn:hover { background: rgba(255, 255, 255, 0.15); color: var(--text-main); }
+        .volume-slider { -webkit-appearance: none; width: 70px; background: transparent; cursor: pointer; }
+        .volume-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 12px; width: 12px; border-radius: 50%; background: #8B5CF6; cursor: pointer; margin-top: -4px; box-shadow: 0 0 8px rgba(139, 92, 246, 0.8); }
+        .volume-slider::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
+
+        .dock { margin-top: auto; margin-bottom: 30px; align-self: center; padding: 15px 25px; display: flex; gap: 20px; pointer-events: auto; }
+        .dock-slot { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        
+        .piece-img-container {
+            width: 65px; height: 65px; background: #E2E8F0; border: 3px solid #FFFFFF;
+            border-radius: 50%; cursor: grab; display: flex; align-items: center; justify-content: center; overflow: hidden;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4), inset 0 -4px 8px rgba(0,0,0,0.15); 
+            position: relative;
+        }
+        .piece-img-container img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; transform: scale(1.15); }
+        .piece-label { font-size: 0.8rem; font-weight: 600; color: var(--text-sub); }
+
+        .piece-dragging {
+            position: fixed; z-index: 9999; pointer-events: none;
+            width: 75px; height: 75px; border: 4px solid #8B5CF6; border-radius: 50%;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.6), 0 0 30px rgba(139, 92, 246, 0.6); 
+            transform: translate(-50%, -50%) scale(1.1) rotate(5deg);
+            overflow: hidden; background: #FFF; display: flex; align-items: center; justify-content: center;
+        }
+        .piece-dragging img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.15); }
+
+        #markers-layer { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+        
+        .zone-label-on-map {
+            position: absolute; transform: translate(-50%, -50%); 
+            font-size: 1.1rem; font-weight: 800; letter-spacing: 6px; pointer-events: none;
+            transition: opacity 0.3s ease; text-shadow: 0 0 15px currentColor, 0 2px 4px rgba(0,0,0,0.8);
+            z-index: 1; mix-blend-mode: screen; 
+        }
+
+        .piece-label-only {
+            position: absolute; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; pointer-events: auto; z-index: 10; 
+            overflow: visible;
+        }
+        .piece-label-only .map-label {
+            position: absolute; bottom: -20px; background: rgba(0,0,0,0.8); color: #FFF;
+            font-size: 0.75rem; padding: 4px 12px; border-radius: 12px; white-space: nowrap; 
+            backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 2;
+            transition: transform 0.2s, border-color 0.2s;
+            left: 50%; transform: translateX(-50%);
+        }
+        .piece-label-only:hover .map-label { transform: scale(1.1); border-color: #8B5CF6; }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+            z-index: 1000; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;
+        }
+        .modal-overlay.show { display: flex; opacity: 1; pointer-events: auto; }
+        .modal-card { width: 90vw; max-width: 500px; padding: 40px; display: flex; flex-direction: column; gap: 20px; pointer-events: auto; }
+        .story-text-area { background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; border: 1px solid var(--border-light); min-height: 150px; max-height: 45vh; overflow-y: auto; color: #E2E8F0; font-size: 1.05rem; line-height: 1.8; }
+
+        #nfc-toast {
+            position: fixed; top: 80px; left: 50%; transform: translateX(-50%) translateY(-20px);
+            background: rgba(30, 30, 40, 0.95); border: 1px solid rgba(110, 231, 183, 0.5);
+            border-radius: 12px; padding: 12px 24px; color: #6EE7B7; font-size: 0.9rem;
+            opacity: 0; transition: all 0.3s ease; pointer-events: none; z-index: 2000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        #nfc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    </style>
+</head>
+<body>
+    <div id="error-screen">
+        <h2>⚠️ Could not load the 3D engine</h2>
+        <p>Three.js failed to load. Check your internet connection, or disable any ad-blocking extension and reload the page.</p>
+    </div>
+
+    <!-- 3D 渲染层 -->
+    <div id="webgl-container"></div>
+    <canvas id="particles-canvas"></canvas>
+    <div id="markers-layer"></div>
+    <div id="nfc-toast"></div>
+
+    <div id="ui-layer">
+        <div id="home-ui">
+            <div class="glass-card title-card pointer-auto">
+                <h1>Storypad</h1>
+                <p>📍 Whimsy Island</p>
+            </div>
+            <div class="info-btn pointer-auto" onclick="openSettings()">ⓘ</div>
+            <div class="glass-card controls-card pointer-auto">
+                <h4>CONTROLS</h4>
+                <p><span>🤏 Scroll / pinch</span> zoom the camera</p>
+                <p><span>👆 Drag empty space</span> rotate the island</p>
+                <p><span>👆 Drag a hero</span> drop to place, tap to recall</p>
+                <p><span>📱 NFC tag</span> place a hero automatically</p>
+            </div>
+            <div class="action-btn-container pointer-auto">
+                <button class="btn-primary" onclick="enterGame()">🚀 Start the mission</button>
+            </div>
+        </div>
+
+        <div id="play-ui">
+            <div class="top-bar pointer-auto">
+                <button class="back-btn" onclick="backToHome()">← Back</button>
+                <div class="hint-box">
+                    <span class="hint-text">Drag a hero onto a location, then press <b>Accept the mission</b></span>
+                </div>
+                <div id="mode-badge" class="mode-badge">Checking connection…</div>
+                <div id="nfc-status">
+                    <span class="dot"></span>
+                    <span class="status-text">NFC idle</span>
+                </div>
+                <div style="display:flex; gap:15px; align-items: center;">
+                    <div class="audio-panel">
+                        <div class="audio-btn" style="margin-right:0;" onclick="openSettings()">⚙️</div>
+                        <div class="audio-btn" id="audio-toggle-btn" onclick="toggleAudio()">🔊</div>
+                        <input type="range" class="volume-slider" id="bgm-volume" min="0" max="1" step="0.01" value="0.5">
+                    </div>
+                    <button class="back-btn" style="margin:0;" onclick="clearAllPieces()">↺ Clear all</button>
+                    <button class="btn-primary" style="padding: 10px 25px; font-size:0.95rem; margin:0;" onclick="generateStory()">⚡ Accept the mission</button>
+                </div>
+            </div>
+
+            <div class="glass-card dock pointer-auto">
+                <div class="dock-slot">
+                    <div class="piece-img-container" data-id="gardener" data-name="Gardener">
+                        <img src="assets/gardener.png" alt="Gardener" onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/bottts/svg?seed=g'">
+                    </div>
+                    <div class="piece-label">Gardener</div>
+                </div>
+                <div class="dock-slot">
+                    <div class="piece-img-container" data-id="explorer" data-name="Explorer">
+                        <img src="assets/explorer.png" alt="Explorer" onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/bottts/svg?seed=e'">
+                    </div>
+                    <div class="piece-label">Explorer</div>
+                </div>
+                <div class="dock-slot">
+                    <div class="piece-img-container" data-id="chef" data-name="Little Chef">
+                        <img src="assets/chef.png" alt="Little Chef" onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/bottts/svg?seed=c'">
+                    </div>
+                    <div class="piece-label">Little Chef</div>
+                </div>
+                <div class="dock-slot">
+                    <div class="piece-img-container" data-id="party" data-name="Party Host">
+                        <img src="assets/party.jpg" alt="Party Host" onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/bottts/svg?seed=p'">
+                    </div>
+                    <div class="piece-label">Party Host</div>
+                </div>
+                <div class="dock-slot">
+                    <div class="piece-img-container" data-id="storyteller" data-name="Storyteller">
+                        <img src="assets/storyteller.jpg" alt="Storyteller" onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/bottts/svg?seed=s'">
+                    </div>
+                    <div class="piece-label">Storyteller</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings panel -->
+    <div id="settings-modal" class="modal-overlay" onclick="closeModalsOnBg(event)">
+        <div class="glass-card modal-card pointer-auto">
+            <h2 style="color:#FFF">⚙️ Settings</h2>
+            <p style="color:var(--text-sub)">Both fields are <b>optional</b>. With a Gemini API key and the NFC bridge running, Storypad writes a fresh story with AI. Without them it falls back to the built-in offline story engine, so the interaction still works.</p>
+            <p style="color:var(--text-sub); margin-top:15px;">Gemini API key <span style="opacity:.6">(stored in this browser only)</span></p>
+            <input type="password" id="apiKey" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="Paste your Gemini API key here...">
+            <p style="color:var(--text-sub); margin-top:15px;">NFC bridge address <span style="opacity:.6">(your computer's IP, optional)</span></p>
+            <input type="text" id="nfcBridgeIp" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="Default localhost:8765">
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+                <button class="back-btn" onclick="closeModals()">Cancel</button>
+                <button class="btn-primary" style="padding: 10px 20px" onclick="saveSettings()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="story-modal" class="modal-overlay" onclick="closeModalsOnBg(event)">
+        <div class="glass-card modal-card pointer-auto" style="max-height: 85vh; overflow-y: auto;">
+            <h2 style="color:#FFF">📖 Mission Story</h2>
+            <div id="story-source" class="story-source"></div>
+            <div class="story-text-area" id="storyContent">Tuning in to the island signal...</div>
+            <div id="imageContainer" style="display:none; margin-top: 10px; text-align: center; position: relative;">
+                <p id="img-loading-text" style="color:#8B5CF6; padding:20px; display:none;"></p>
+                <img id="generatedImage" style="max-width: 100%; border-radius: 12px; border: 1px solid var(--border-light); box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: none;" />
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px; flex-wrap: wrap;">
+                <button class="back-btn" onclick="closeModals()">Close</button>
+                <button class="btn-primary" id="btn-retry" style="padding: 10px 20px; display:none;" onclick="generateStory()">🔄 Try again</button>
+                <button class="btn-primary" id="btn-draw" style="padding: 10px 20px; display:none;" onclick="generateImage()">🎨 Draw illustration</button>
+                <button class="btn-primary" id="btn-read" style="padding: 10px 20px; display:none;" onclick="readStory()">🎵 Listen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        // Helper function to convert raw PCM16 audio from Gemini API to playable WAV format
+        // =========================================================
+        function pcmToWav(pcmData, sampleRate) {
+            const numChannels = 1;
+            const bitsPerSample = 16;
+            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+            const blockAlign = numChannels * (bitsPerSample / 8);
+            const dataSize = pcmData.byteLength;
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+
+            function writeString(view, offset, string) {
+                for (let i = 0; i < string.length; i++) { view.setUint8(offset + i, string.charCodeAt(i)); }
+            }
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); // PCM format
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            const pcmView = new Uint8Array(pcmData);
+            for (let i = 0; i < pcmView.length; i++) {
+                view.setUint8(44 + i, pcmView[i]);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        // 立即执行以避免提前点击报错
+        (() => {
+            if (typeof THREE === 'undefined') {
+                document.getElementById('error-screen').style.display = 'flex';
+                document.getElementById('ui-layer').style.display = 'none';
+                return;
+            }
+
+            // ================= 1. 全局状态变量 =================
+            let isPlayMode = false;
+            let isAudioOn = true;
+            
+            let audioCtx = null;
+            try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); } catch(e) {}
+            
+            let bgmAudio = new Audio();
+            // 恢复为你本地的 mp3 文件，并去掉了网络替代逻辑
+            bgmAudio.src = 'bgm.mp3'; 
+            bgmAudio.loop = true;
+            bgmAudio.onerror = () => { console.warn("未能加载本地BGM，请确保音频文件与html在同一目录。"); };
+
+            const volumeSlider = document.getElementById('bgm-volume');
+            if (volumeSlider) {
+                bgmAudio.volume = volumeSlider.value;
+                volumeSlider.addEventListener('input', (e) => {
+                    bgmAudio.volume = parseFloat(e.target.value);
+                });
+            }
+
+            let camTargetLook = new THREE.Vector3(0, 0, 0);
+            let camTargetPos = new THREE.Vector3(0, 300, 600);
+            let cameraAngle = 0;      // 相机水平角度
+            let cameraHeight = 300;    // 相机高度
+            let cameraDist = 600;      // 相机距离
+            let skipOrbitCalc = false;  // NFC特写时跳过轨道计算
+            let planetTargetRotY = 0;  // 游戏垫目标旋转角度
+
+            // ── 预设镜头动画系统 ──────────────────────────────────────
+            // 镜头动画状态机：'idle' | 'overview' | 'closeup'
+            let cinemaState    = 'idle';
+            let cinemaTimer    = 0;       // 当前阶段已过帧数
+            let cinemaPhase1Frames = 50;  // 俯瞰阶段帧数（~0.83s @60fps）
+            let cinemaPhase2Frames = 90;  // 特写阶段帧数（~1.5s @60fps）
+            let cinemaTargetPos  = new THREE.Vector3();
+            let cinemaTargetLook = new THREE.Vector3();
+            let cinemaCloseupPos  = new THREE.Vector3();
+            let cinemaCloseupLook = new THREE.Vector3();
+            // ─────────────────────────────────────────────────────────
+
+            let isDraggingMap = false; 
+            let previousPointer = { x: 0, y: 0 }; 
+            let previousPinchDist = 0;
+            let planetBounceForce = 0;
+
+            const placedPieces = {}; 
+            const zonesObjects = [];
+            const flatY = 80; 
+            const planetRadius = 260;
+
+            let dragPiece = null; 
+            let ghostEl = null; 
+            const raycaster = new THREE.Raycaster(); 
+            const mouse = new THREE.Vector2();
+
+            // ================= 2. 音效函数 (固定音量) =================
+            function playBell(ctx, freq, startTime, duration, vol, type = 'sine') {
+                const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.type = type; osc.frequency.setValueAtTime(freq, startTime);
+                gain.gain.setValueAtTime(0, startTime); 
+                gain.gain.linearRampToValueAtTime(vol, startTime + 0.02); 
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+                osc.start(startTime); osc.stop(startTime + duration);
+            }
+
+            window.playSfx = function(type) {
+                if (!isAudioOn || !audioCtx) return;
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                
+                try {
+                    const now = audioCtx.currentTime;
+                    if (type === 'pickup') {
+                        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                        osc.connect(gain); gain.connect(audioCtx.destination);
+                        osc.type = 'sine'; osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(1500, now + 0.15);
+                        gain.gain.setValueAtTime(0.2, now); // 固定音量
+                        gain.gain.linearRampToValueAtTime(0, now + 0.2); 
+                        osc.start(now); osc.stop(now + 0.2);
+                    } else if (type === 'drop') {
+                        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                        osc.connect(gain); gain.connect(audioCtx.destination);
+                        osc.type = 'triangle'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(30, now + 0.1);
+                        gain.gain.setValueAtTime(0.6, now); // 固定音量
+                        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                        osc.start(now); osc.stop(now + 0.1);
+
+                        const bufferSize = audioCtx.sampleRate * 0.1; const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate); const data = buffer.getChannelData(0);
+                        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                        const noise = audioCtx.createBufferSource(); noise.buffer = buffer;
+                        const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(1000, now); filter.frequency.exponentialRampToValueAtTime(100, now + 0.1); 
+                        const noiseGain = audioCtx.createGain(); 
+                        noiseGain.gain.setValueAtTime(0.4, now); // 固定音量
+                        noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                        noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(audioCtx.destination); noise.start(now);
+                        playBell(audioCtx, 1500 + Math.random()*500, now, 0.3, 0.05, 'sine');
+                    } else if (type === 'ding') {
+                        const pentatonicNotes = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50]; 
+                        const randomFreq = pentatonicNotes[Math.floor(Math.random() * pentatonicNotes.length)];
+                        playBell(audioCtx, randomFreq, now, 0.5, 0.25, 'sine'); 
+                        playBell(audioCtx, randomFreq * 2, now, 0.3, 0.08, 'triangle'); 
+                    }
+                } catch (e) {} 
+            };
+
+            // ================= 2.5 2D 粒子系统 (紫色流体拖尾 + 魔法星尘 + 爆裂) =================
+            const pCanvas = document.getElementById('particles-canvas');
+            const pCtx = pCanvas.getContext('2d');
+            let particles = []; let shockwaves = []; let magicStars = []; let trails = [];
+            let ambientParticles = []; 
+            
+            function resizePCanvas() { pCanvas.width = window.innerWidth; pCanvas.height = window.innerHeight; }
+            window.addEventListener('resize', resizePCanvas); resizePCanvas();
+
+            function spawnParticle(x, y) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+                    life: 1, size: Math.random() * 3 + 1,
+                    color: `hsl(${Math.random()*60 + 200}, 80%, 70%)` 
+                });
+            }
+
+            function addTrailPoint(x, y) {
+                trails.push({ x: x, y: y, age: 0 });
+                if (Math.random() > 0.7) spawnParticle(x, y); 
+            }
+
+            function spawnCinematicClick(x, y) {
+                shockwaves.push({ x, y, radius: 5, life: 1.0, speed: 8, type: 'circle' });
+                shockwaves.push({ x, y, radius: 10, life: 1.0, speed: 5, type: 'hexagon', rotation: Math.random() * Math.PI });
+
+                const starCount = Math.floor(Math.random() * 3) + 3; 
+                for(let i=0; i<starCount; i++) {
+                    magicStars.push({
+                        x: x, y: y, size: Math.random() * 12 + 8, life: 1.0,
+                        rot: Math.random() * Math.PI, rotSpeed: (Math.random() - 0.5) * 0.3,
+                        vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6 - 2 
+                    });
+                }
+
+                const count = 12;
+                for(let i=0; i<count; i++) {
+                    const angle = (Math.PI * 2 / count) * i + Math.random();
+                    const speed = Math.random() * 5 + 2;
+                    particles.push({
+                        x: x, y: y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                        life: 1.2, size: Math.random() * 3 + 1.5, color: `hsl(${Math.random()*80 + 180}, 100%, 75%)`, 
+                        gravity: 0.15, friction: 0.92
+                    });
+                }
+            }
+
+            // 无条件触发魔法粒子特效，无需在PlayMode下
+            window.addEventListener('mousedown', e => { spawnCinematicClick(e.clientX, e.clientY); });
+            window.addEventListener('touchstart', e => { spawnCinematicClick(e.touches[0].clientX, e.touches[0].clientY); }, {passive: true});
+            document.addEventListener('mousemove', e => { addTrailPoint(e.clientX, e.clientY); });
+            document.addEventListener('touchmove', e => { addTrailPoint(e.touches[0].clientX, e.touches[0].clientY); }, {passive:true});
+
+            function animate2DFX() {
+                pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+                
+                // 绘制拖尾
+                for (let i = 0; i < trails.length - 1; i++) {
+                    let t1 = trails[i]; let t2 = trails[i+1];
+                    let progress = 1 - (t1.age / 50); 
+                    if (progress < 0) progress = 0;
+                    pCtx.beginPath(); pCtx.moveTo(t1.x, t1.y); pCtx.lineTo(t2.x, t2.y);
+                    pCtx.lineWidth = 8 * progress; 
+                    pCtx.strokeStyle = `rgba(139, 92, 246, ${progress * 0.5})`; 
+                    pCtx.lineCap = 'round'; pCtx.stroke();
+                    t1.age++;
+                }
+                if (trails.length > 0) trails[trails.length - 1].age++;
+                trails = trails.filter(t => t.age < 50); 
+
+                pCtx.globalCompositeOperation = 'screen'; 
+
+                // 绘制全局漂浮星尘
+                if (Math.random() < 0.4) { 
+                    ambientParticles.push({
+                        x: Math.random() * pCanvas.width, y: pCanvas.height + 10, 
+                        vx: (Math.random() - 0.5) * 0.8, vy: -Math.random() * 1.5 - 0.5, 
+                        life: 1.0, size: Math.random() * 2 + 1, color: `hsl(${Math.random()*60 + 200}, 80%, 75%)` 
+                    });
+                }
+                for(let i = ambientParticles.length-1; i >= 0; i--) {
+                    let p = ambientParticles[i];
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.003; 
+                    if(p.life <= 0 || p.y < -10) { ambientParticles.splice(i, 1); continue; }
+                    pCtx.globalAlpha = p.life * 0.8; pCtx.fillStyle = p.color;
+                    pCtx.beginPath(); pCtx.arc(p.x, p.y, p.size, 0, Math.PI*2); pCtx.fill();
+                }
+
+                // 绘制魔法十字星星
+                for(let i = magicStars.length-1; i >= 0; i--) {
+                    let s = magicStars[i];
+                    s.vy += 0.12; s.x += s.vx; s.y += s.vy; s.rot += s.rotSpeed; s.life -= 0.008; s.size *= 0.97; 
+                    if(s.life <= 0 || s.size < 0.5) { magicStars.splice(i, 1); continue; }
+                    pCtx.globalAlpha = s.life; pCtx.save(); pCtx.translate(s.x, s.y); pCtx.rotate(s.rot);
+                    pCtx.fillStyle = '#FFFFFF'; pCtx.beginPath(); pCtx.moveTo(0, -s.size);
+                    pCtx.quadraticCurveTo(s.size*0.1, -s.size*0.1, s.size, 0); pCtx.quadraticCurveTo(s.size*0.1, s.size*0.1, 0, s.size);
+                    pCtx.quadraticCurveTo(-s.size*0.1, s.size*0.1, -s.size, 0); pCtx.quadraticCurveTo(-s.size*0.1, -s.size*0.1, 0, -s.size);
+                    pCtx.fill(); pCtx.restore();
+                }
+
+                // 绘制火花粒子
+                for(let i = particles.length-1; i >= 0; i--) {
+                    let p = particles[i];
+                    if (p.gravity !== undefined) p.vy += p.gravity; 
+                    if (p.friction !== undefined) { p.vx *= p.friction; p.vy *= p.friction; } 
+                    p.x += p.vx; p.y += p.vy; p.life -= 0.008; 
+                    if(p.life <= 0) { particles.splice(i, 1); continue; }
+                    pCtx.globalAlpha = p.life; pCtx.fillStyle = p.color;
+                    pCtx.beginPath(); pCtx.arc(p.x, p.y, p.size, 0, Math.PI*2); pCtx.fill();
+                }
+
+                // 绘制震荡波
+                for(let i = shockwaves.length-1; i >= 0; i--) {
+                    let s = shockwaves[i];
+                    s.radius += s.speed; s.speed *= 0.95; s.life -= 0.012; 
+                    if(s.life <= 0) { shockwaves.splice(i, 1); continue; }
+                    pCtx.globalAlpha = s.life; pCtx.strokeStyle = '#6EE7B7'; pCtx.lineWidth = 2 * s.life + 1;
+                    if (s.type === 'circle') { pCtx.beginPath(); pCtx.arc(s.x, s.y, s.radius, 0, Math.PI*2); pCtx.stroke(); } 
+                    else if (s.type === 'hexagon') {
+                        s.rotation += 0.015; pCtx.save(); pCtx.translate(s.x, s.y); pCtx.rotate(s.rotation); pCtx.beginPath();
+                        for(let j=0; j<6; j++) {
+                            const angle = (Math.PI * 2 / 6) * j;
+                            const px = Math.cos(angle) * s.radius; const py = Math.sin(angle) * s.radius;
+                            if(j===0) pCtx.moveTo(px, py); else pCtx.lineTo(px, py);
+                        }
+                        pCtx.closePath(); pCtx.stroke(); pCtx.restore();
+                    }
+                }
+                
+                pCtx.globalCompositeOperation = 'source-over'; 
+                requestAnimationFrame(animate2DFX);
+            }
+            animate2DFX();
+
+            // ================= 3. Three.js 场景初始化 =================
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0B1021); 
+            scene.fog = new THREE.FogExp2(0x0B1021, 0.0008); 
+            
+            const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 3000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.getElementById('webgl-container').appendChild(renderer.domElement);
+            
+            scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+            const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.0); dirLight.position.set(300, 400, 200); dirLight.castShadow = true; scene.add(dirLight);
+            const backLight = new THREE.DirectionalLight(0x60A5FA, 0.5); backLight.position.set(-300, 100, -300); scene.add(backLight);
+
+            const starsGeo = new THREE.BufferGeometry();
+            const starsPos = []; const starsColors = [];
+            const colorPalette = [0xffffff, 0x93C5FD, 0xFDBA74, 0xF472B6, 0x6EE7B7]; 
+            for(let i=0; i<2500; i++) { 
+                starsPos.push((Math.random()-0.5)*3000, (Math.random()-0.5)*3000, (Math.random()-0.5)*3000); 
+                const color = new THREE.Color(colorPalette[Math.floor(Math.random() * colorPalette.length)]);
+                starsColors.push(color.r, color.g, color.b);
+            }
+            starsGeo.setAttribute('position', new THREE.Float32BufferAttribute(starsPos, 3));
+            starsGeo.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+            const starsMat = new THREE.PointsMaterial({size: 2.5, transparent: true, opacity: 0.9, vertexColors: true});
+            const stars = new THREE.Points(starsGeo, starsMat);
+            scene.add(stars);
+
+            const nebulaColors = [0x8B5CF6, 0x3B82F6, 0xEC4899, 0x10B981];
+            const nebulas = [];
+            for(let i=0; i<6; i++) {
+                const orb = new THREE.Mesh(new THREE.SphereGeometry(200 + Math.random()*200, 32, 32), new THREE.MeshBasicMaterial({ color: nebulaColors[i % nebulaColors.length], transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false }));
+                orb.position.set((Math.random() - 0.5) * 2000, (Math.random() - 0.5) * 1000, (Math.random() - 0.5) * 2000);
+                scene.add(orb); nebulas.push({ mesh: orb, speedX: (Math.random()-0.5)*0.5, speedY: (Math.random()-0.5)*0.5 });
+            }
+
+            const planetGroup = new THREE.Group(); scene.add(planetGroup);
+            const rings = []; const ringColors = [0x8B5CF6, 0x3B82F6, 0x6EE7B7];
+            for(let i=0; i<3; i++) {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(320 + i*45, 1.5, 16, 100), new THREE.MeshBasicMaterial({ color: ringColors[i], transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending }));
+                ring.rotation.x = Math.PI / 2 + (Math.random()-0.5)*0.5; ring.rotation.y = (Math.random()-0.5)*0.5;
+                planetGroup.add(ring); rings.push({ mesh: ring, speed: (Math.random() * 0.0015 + 0.0005) * (i%2==0?1:-1) });
+            }
+
+            // ================= 4. 建筑与地形生成 =================
+            const matCache = {};
+            const getMat = (hex) => { if(!matCache[hex]) matCache[hex] = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.7, metalness: 0.1, flatShading: true }); return matCache[hex]; };
+
+            function createTree() { const g = new THREE.Group(); const t = new THREE.Mesh(new THREE.BoxGeometry(6, 12, 6), getMat(0x79553D)); t.position.y = 6.1; g.add(t); const l = new THREE.Mesh(new THREE.BoxGeometry(16, 16, 16), getMat(0x2D7A4D)); l.position.y = 20.1; g.add(l); return g; }
+            function createSchoolBuilding() { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(40, 24, 24), getMat(0xF8FAFC)); b.position.y = 12.1; g.add(b); const r = new THREE.Mesh(new THREE.BoxGeometry(44, 8, 28), getMat(0x3B82F6)); r.position.y = 28.1; g.add(r); const d = new THREE.Mesh(new THREE.BoxGeometry(10, 12, 2), getMat(0x475569)); d.position.set(0, 6, 12.5); g.add(d); return g; }
+            function createRoadSegment() { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(16, 1.5, 16), getMat(0x4B5563)); b.position.y = 0.8; g.add(b); const l = new THREE.Mesh(new THREE.BoxGeometry(2, 1.6, 8), getMat(0xFFFFFF)); l.position.y = 0.9; g.add(l); return g; }
+            function createCrossroad() { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(16, 1.5, 16), getMat(0x4B5563)); b.position.y = 0.8; g.add(b); const c = new THREE.Mesh(new THREE.BoxGeometry(4, 1.6, 4), getMat(0xFFFFFF)); c.position.y = 0.9; g.add(c); return g; }
+            function createLake() { const g = new THREE.Group(); const w = new THREE.Mesh(new THREE.BoxGeometry(40, 2, 32), getMat(0x3B82F6)); w.position.y = 1.1; g.add(w); const p = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 1, 8), getMat(0x10B981)); p.position.set(12, 1.5, 6); g.add(p); const s = new THREE.Mesh(new THREE.DodecahedronGeometry(4, 0), getMat(0x9CA3AF)); s.position.set(-16, 2.1, -10); g.add(s); return g; }
+            function createHouse() { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(24, 16, 20), getMat(0xFFFFFF)); b.position.y = 8.1; g.add(b); const r = new THREE.Mesh(new THREE.BoxGeometry(28, 10, 24), getMat(0xD97742)); r.position.y = 21.1; g.add(r); const d = new THREE.Mesh(new THREE.BoxGeometry(6, 10, 2), getMat(0x8B5CF6)); d.position.set(0, 5.1, 10.5); g.add(d); return g; }
+            function createShop() { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(28, 16, 18), getMat(0xD1D5DB)); b.position.y = 8.1; g.add(b); const a = new THREE.Mesh(new THREE.BoxGeometry(30, 2, 12), getMat(0xEF4444)); a.position.set(0, 16.1, 6); a.rotation.x = -0.2; g.add(a); const w = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 2), getMat(0x93C5FD)); w.position.set(0, 8.1, 9); g.add(w); return g; }
+            function createFence() { const g = new THREE.Group(); const m = getMat(0x8B4513); const p1 = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 2), m); p1.position.set(-6, 5.1, 0); g.add(p1); const p2 = new THREE.Mesh(new THREE.BoxGeometry(2, 10, 2), m); p2.position.set(6, 5.1, 0); g.add(p2); const b1 = new THREE.Mesh(new THREE.BoxGeometry(16, 2, 2), m); b1.position.set(0, 7.1, 0); g.add(b1); return g; }
+            function createRoadblock() { const g = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(12, 2, 4), getMat(0x374151)); b.position.y = 1.1; g.add(b); const b1 = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 2), getMat(0xF97316)); b1.position.y = 6.1; g.add(b1); const s = new THREE.Mesh(new THREE.BoxGeometry(10.2, 2, 2.2), getMat(0xFFFFFF)); s.position.y = 6.1; g.add(s); return g; }
+            function createBush() { const g = new THREE.Group(); const b1 = new THREE.Mesh(new THREE.DodecahedronGeometry(6, 0), getMat(0x10B981)); b1.position.y = 5.1; g.add(b1); const b2 = new THREE.Mesh(new THREE.DodecahedronGeometry(4, 0), getMat(0x059669)); b2.position.set(5, 3.1, 3); g.add(b2); return g; }
+            function createBench() { const g = new THREE.Group(); const seat = new THREE.Mesh(new THREE.BoxGeometry(14, 2, 6), getMat(0x8B4513)); seat.position.y = 4.1; g.add(seat); const back = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 2), getMat(0x8B4513)); back.position.set(0, 8.1, -3); g.add(back); return g; }
+            function createStreetlight() { const g = new THREE.Group(); const pole = new THREE.Mesh(new THREE.BoxGeometry(2, 24, 2), getMat(0x9CA3AF)); pole.position.y = 12.1; g.add(pole); const light = new THREE.Mesh(new THREE.BoxGeometry(4, 4, 4), getMat(0xFCD34D)); light.position.set(2, 24.1, 0); g.add(light); return g; }
+            function createBookshelf() { const g = new THREE.Group(); const frame = new THREE.Mesh(new THREE.BoxGeometry(16, 18, 6), getMat(0x5C4033)); frame.position.y = 9.1; g.add(frame); const bk = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 4), getMat(0xEF4444)); bk.position.set(-4, 5.1, 2); g.add(bk); return g; }
+            function createParasol() { const g = new THREE.Group(); const pole = new THREE.Mesh(new THREE.BoxGeometry(1.5, 20, 1.5), getMat(0xD1D5DB)); pole.position.y = 10.1; g.add(pole); const top = new THREE.Mesh(new THREE.ConeGeometry(12, 4, 8), getMat(0xF472B6)); top.position.y = 20.1; g.add(top); return g; }
+            function createClassroom() { const g = new THREE.Group(); const board = new THREE.Mesh(new THREE.BoxGeometry(24, 12, 2), getMat(0x064E3B)); board.position.set(0, 14.1, -12); g.add(board); for (let i=-1; i<=1; i+=2) { const desk = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 8), getMat(0xD97742)); desk.position.set(i*8, 3.1, 0); g.add(desk); } return g; }
+            function createPool() { const g = new THREE.Group(); const border = new THREE.Mesh(new THREE.BoxGeometry(36, 4, 28), getMat(0xF3F4F6)); border.position.y = 2.1; g.add(border); const water = new THREE.Mesh(new THREE.BoxGeometry(32, 4.2, 24), getMat(0x0EA5E9)); water.position.y = 2.1; g.add(water); return g; }
+            function createFitnessEq() { const g = new THREE.Group(); const mat = new THREE.Mesh(new THREE.BoxGeometry(32, 2, 24), getMat(0xEF4444)); mat.position.y = 1.1; g.add(mat); const pole = new THREE.Mesh(new THREE.BoxGeometry(2, 16, 2), getMat(0xFBBF24)); pole.position.set(-10, 8.1, -6); g.add(pole); return g; }
+
+            const geoVoxel = new THREE.BoxGeometry(16, 16, 16);
+            for(let x = -planetRadius; x <= planetRadius; x += 16) {
+                for(let z = -planetRadius; z <= planetRadius; z += 16) {
+                    const distSq = x*x + z*z;
+                    if(distSq < planetRadius * planetRadius) {
+                        let isFlat = Math.abs(x) >= 64 && Math.abs(x) <= 160 && Math.abs(z) >= 64 && Math.abs(z) <= 160;
+                        let y = isFlat ? flatY : (Math.sqrt(planetRadius*planetRadius - distSq) * 0.4 + Math.sin(x*0.04)*12 + Math.cos(z*0.04)*12);
+                        y = Math.floor(y / 16) * 16;
+                        
+                        const color = x>=0? (z>=0?0x65B787:0xDE9B52) : (z>=0?0x9CA3AF:0x418B72);
+                        const mesh = new THREE.Mesh(geoVoxel, getMat(color));
+                        mesh.position.set(x, y, z); mesh.receiveShadow = true;
+                        mesh.userData = { name: x>=0?(z>=0?'绿洲公园':'暖阳社区'):(z>=0?'知识学院':'静谧街道') };
+                        planetGroup.add(mesh); zonesObjects.push(mesh);
+                        const base = new THREE.Mesh(geoVoxel, getMat(color)); base.position.set(x, y - 16, z); planetGroup.add(base);
+
+                        if(!isFlat && y > 30) {
+                            const r = Math.random();
+                            if (r < 0.015) { const d = createTree(); d.position.set(x, y + 8, z); d.rotation.y = Math.random() * Math.PI; planetGroup.add(d); }
+                            else if (r < 0.02) { const f = createFence(); f.position.set(x, y + 8, z); f.rotation.y = Math.random() * Math.PI; planetGroup.add(f); }
+                            else if (r < 0.022) { const rb = createRoadblock(); rb.position.set(x, y + 8, z); rb.rotation.y = Math.random() * Math.PI; planetGroup.add(rb); }
+                        }
+                    }
+                }
+            }
+            planetGroup.position.y = 15;
+
+            const sY = flatY + 8.1;
+            for(let i = -144; i <= -80; i += 16) { if(i !== -112) { const rX = createRoadSegment(); rX.position.set(i, sY, -112); rX.rotation.y = Math.PI/2; planetGroup.add(rX); const rZ = createRoadSegment(); rZ.position.set(-112, sY, i); planetGroup.add(rZ); } }
+            const crossRoad = createCrossroad(); crossRoad.position.set(-112, sY, -112); planetGroup.add(crossRoad);
+
+            const lake = createLake(); lake.position.set(100, sY, 100); planetGroup.add(lake);
+            const parkBench = createBench(); parkBench.position.set(135, sY, 100); parkBench.rotation.y = -Math.PI/2; planetGroup.add(parkBench);
+            const parkBush = createBush(); parkBush.position.set(80, sY, 130); planetGroup.add(parkBush);
+            const tree1 = createTree(); tree1.position.set(140, sY, 140); planetGroup.add(tree1);
+            const f1 = createFence(); f1.position.set(120, sY, 80); planetGroup.add(f1);
+            const f2 = createFence(); f2.position.set(104, sY, 80); planetGroup.add(f2);
+
+            const sch = createSchoolBuilding(); sch.position.set(-112, sY, 90); planetGroup.add(sch);
+            const classroom = createClassroom(); classroom.position.set(-112, sY, 130); planetGroup.add(classroom);
+            const bookshelf = createBookshelf(); bookshelf.position.set(-70, sY, 110); bookshelf.rotation.y = -Math.PI/2; planetGroup.add(bookshelf);
+            const schoolLight = createStreetlight(); schoolLight.position.set(-90, sY, 80); planetGroup.add(schoolLight);
+            const f3 = createFence(); f3.position.set(-135, sY, 110); f3.rotation.y = Math.PI/2; planetGroup.add(f3);
+            const rb1 = createRoadblock(); rb1.position.set(-90, sY, 110); planetGroup.add(rb1);
+
+            const shp = createShop(); shp.position.set(-80, sY, -80); planetGroup.add(shp);
+            const fitness = createFitnessEq(); fitness.position.set(-144, sY, -144); planetGroup.add(fitness);
+            const streetBench = createBench(); streetBench.position.set(-80, sY, -144); streetBench.rotation.y = Math.PI/2; planetGroup.add(streetBench);
+            const streetLight = createStreetlight(); streetLight.position.set(-96, sY, -96); planetGroup.add(streetLight); 
+            const rb2 = createRoadblock(); rb2.position.set(-112, sY, -80); planetGroup.add(rb2);
+
+            const hse = createHouse(); hse.position.set(112, sY, -90); planetGroup.add(hse);
+            const pool = createPool(); pool.position.set(112, sY, -135); planetGroup.add(pool);
+            const parasol = createParasol(); parasol.position.set(85, sY, -135); planetGroup.add(parasol);
+            const commBush = createBush(); commBush.position.set(130, sY, -100); planetGroup.add(commBush);
+            const f4 = createFence(); f4.position.set(96, sY, -75); planetGroup.add(f4);
+            const f5 = createFence(); f5.position.set(128, sY, -75); planetGroup.add(f5);
+
+            // ================= 5. Voxel 角色生成器 =================
+            function createVoxelCharacter(id) {
+                const group = new THREE.Group();
+                const innerGroup = new THREE.Group(); 
+                group.add(innerGroup);
+                
+                const skin = getMat(0xFFDFB9);
+                const headSize = 7;
+                const head = new THREE.Mesh(new THREE.BoxGeometry(headSize, headSize, headSize), skin);
+                head.position.y = 11.5; head.castShadow = true; innerGroup.add(head);
+
+                const eyeMat = getMat(0x333333);
+                const eyeL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 1.0), eyeMat);
+                eyeL.position.set(-1.8, 11.5, headSize/2 + 0.2); innerGroup.add(eyeL);
+                const eyeR = eyeL.clone(); eyeR.position.set(1.8, 11.5, headSize/2 + 0.2); innerGroup.add(eyeR);
+
+                const body = new THREE.Mesh(new THREE.BoxGeometry(5, 5, 4), getMat(0xEEEEEE));
+                body.position.y = 5.5; body.castShadow = true; innerGroup.add(body);
+                
+                const legL = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 2), skin);
+                legL.position.set(-1.5, 1.5, 0); legL.castShadow = true; innerGroup.add(legL);
+                const legR = legL.clone(); legR.position.set(1.5, 1.5, 0); innerGroup.add(legR);
+
+                const armL = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 1.5), skin);
+                armL.position.set(-3.25, 6, 0); armL.castShadow = true; innerGroup.add(armL);
+                const armR = armL.clone(); armR.position.set(3.25, 6, 0); innerGroup.add(armR);
+
+                if (id === 'gardener') {
+                    body.material = getMat(0x10B981); 
+                    const hair = new THREE.Mesh(new THREE.BoxGeometry(7.5, 2, 7.5), getMat(0x5C4033));
+                    hair.position.y = 15.5; innerGroup.add(hair);
+                    const bunL = new THREE.Mesh(new THREE.BoxGeometry(3.5, 4, 3.5), getMat(0x5C4033)); 
+                    bunL.position.set(-4.5, 13, -1); innerGroup.add(bunL);
+                    const bunR = bunL.clone(); bunR.position.set(4.5, 13, -1); innerGroup.add(bunR);
+                    armL.material = getMat(0xFBBF24); armR.material = getMat(0xFBBF24); 
+                    const flower = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), getMat(0xEC4899)); 
+                    flower.position.set(-3.25, 4, 2); innerGroup.add(flower);
+
+                } else if (id === 'explorer') {
+                    body.visible = false; 
+                    const s1 = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.6, 4.2), getMat(0xEC4899)); s1.position.y = 7.1; innerGroup.add(s1);
+                    const s2 = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.6, 4.2), getMat(0x3B82F6)); s2.position.y = 5.5; innerGroup.add(s2);
+                    const s3 = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.8, 4.2), getMat(0xFBBF24)); s3.position.y = 3.8; innerGroup.add(s3);
+                    const hat = new THREE.Mesh(new THREE.BoxGeometry(9, 1.5, 9), getMat(0xFBBF24)); hat.position.y = 15.5; innerGroup.add(hat);
+                    const hatTop = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 6), getMat(0xFBBF24)); hatTop.position.y = 17.5; innerGroup.add(hatTop);
+                    const hairL = new THREE.Mesh(new THREE.BoxGeometry(3, 5, 3), getMat(0xEC4899)); hairL.position.set(-4.5, 11, -1); innerGroup.add(hairL);
+                    const hairR = hairL.clone(); hairR.position.set(4.5, 11, -1); innerGroup.add(hairR);
+
+                } else if (id === 'chef') {
+                    body.material = getMat(0x60A5FA); 
+                    const hatBase = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 7), getMat(0xFFFFFF)); hatBase.position.y = 16; innerGroup.add(hatBase);
+                    const hatTop = new THREE.Mesh(new THREE.BoxGeometry(9, 5, 9), getMat(0xFFFFFF)); hatTop.position.y = 19; innerGroup.add(hatTop); 
+                    const whisk = new THREE.Mesh(new THREE.BoxGeometry(0.8, 5, 0.8), getMat(0x9CA3AF)); whisk.position.set(3.25, 6, 2); whisk.rotation.x = 0.5; innerGroup.add(whisk);
+
+                } else if (id === 'party') {
+                    body.visible = false; 
+                    const r1 = new THREE.Mesh(new THREE.BoxGeometry(5.5, 1.8, 4.5), getMat(0xEF4444)); r1.position.y = 7; innerGroup.add(r1);
+                    const r2 = new THREE.Mesh(new THREE.BoxGeometry(6, 1.8, 5), getMat(0xFBBF24)); r2.position.y = 5.2; innerGroup.add(r2);
+                    const r3 = new THREE.Mesh(new THREE.BoxGeometry(6.5, 2, 5.5), getMat(0x3B82F6)); r3.position.y = 3.4; innerGroup.add(r3);
+                    const hat = new THREE.Mesh(new THREE.ConeGeometry(3, 7, 4), getMat(0xFFFFFF)); hat.position.y = 18; hat.rotation.y = Math.PI/4; innerGroup.add(hat);
+                    const hair = new THREE.Mesh(new THREE.BoxGeometry(7.5, 2.5, 7.5), getMat(0xB8860B)); hair.position.y = 15.5; innerGroup.add(hair);
+                    const hairL = new THREE.Mesh(new THREE.BoxGeometry(2.5, 3.5, 3), getMat(0xB8860B)); hairL.position.set(-4.2, 13, 0); innerGroup.add(hairL);
+                    const hairR = hairL.clone(); hairR.position.set(4.2, 13, 0); innerGroup.add(hairR);
+
+                } else if (id === 'storyteller' || id === 'story') {
+                    body.material = getMat(0x10B981); armL.material = getMat(0x10B981); armR.material = getMat(0x10B981); 
+                    const overalls = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.8, 4.2), getMat(0xFBBF24)); overalls.position.y = 4.3; innerGroup.add(overalls);
+                    const strapL = new THREE.Mesh(new THREE.BoxGeometry(1, 3, 4.2), getMat(0xFBBF24)); strapL.position.set(-1.5, 7, 0); innerGroup.add(strapL);
+                    const strapR = strapL.clone(); strapR.position.set(1.5, 7, 0); innerGroup.add(strapR); 
+                    const hair = new THREE.Mesh(new THREE.BoxGeometry(7.5, 3, 7.5), getMat(0xFBBF24)); hair.position.y = 15.5; innerGroup.add(hair);
+                    const book = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 3), getMat(0xEF4444)); book.position.set(-3.5, 5, 2); innerGroup.add(book);
+                }
+
+                group.userData = { id: id, startY: 0, timeOffset: Math.random() * Math.PI * 2, animTimer: 0, isHappy: true, innerGroup: innerGroup, limbs: { armL, armR, legL, legR } };
+                return group;
+            }
+
+            // ================= 6. UI & NFC 逻辑 =================
+            const markersLayer = document.getElementById('markers-layer');
+            const zoneNames = [{n:'绿洲公园',x:112,z:112,c:'#6EE7B7'}, {n:'知识学院',x:-112,z:112,c:'#93C5FD'}, {n:'静谧街道',x:-112,z:-112,c:'#A7F3D0'}, {n:'暖阳社区',x:112,z:-112,c:'#FCD34D'}];
+            const zoneLabels = zoneNames.map(z => {
+                const el = document.createElement('div'); el.className = 'zone-label-on-map'; el.innerText = z.n; el.style.color = z.c;
+                markersLayer.appendChild(el); return { el, pos: new THREE.Vector3(z.x, flatY + 45, z.z) };
+            });
+
+            function updateMarkers() {
+                const planetCenter = new THREE.Vector3().setFromMatrixPosition(planetGroup.matrixWorld);
+                [...zoneLabels, ...Object.values(placedPieces)].forEach(m => {
+                    const targetPos = m.pos ? m.pos : new THREE.Vector3(m.localPos.x, m.localPos.y + 25, m.localPos.z);
+                    const worldPos = targetPos.clone().applyMatrix4(planetGroup.matrixWorld);
+                    const dir = worldPos.clone().sub(planetCenter).normalize();
+                    const camDir = camera.position.clone().sub(worldPos).normalize();
+                    if (dir.dot(camDir) < -0.1) { m.el.style.display = 'none'; } 
+                    else {
+                        const screenPos = worldPos.project(camera);
+                        const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+                        const y = (-(screenPos.y * 0.5) + 0.5) * window.innerHeight;
+                        m.el.style.display = 'flex'; m.el.style.left = `${x}px`; m.el.style.top = `${y}px`;
+                        m.el.style.transform = `translate(-50%, -50%) scale(${isPlayMode ? 1 : 0})`;
+                    }
+                });
+            }
+
+            function getNfcBridgeUrl() { const ip = localStorage.getItem('nfc_bridge_ip') || 'localhost'; return ip.includes(':') ? `http://${ip}` : `http://${ip}:8765`; }
+            function showNfcToast(msg) { const t = document.getElementById('nfc-toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
+            function updateNfcStatus(status, text) { const el = document.getElementById('nfc-status'); el.className = status; el.querySelector('.status-text').textContent = text; }
+
+            function findGroundPosition(x, z) {
+                for (let obj of zonesObjects) {
+                    const pos = obj.position;
+                    if (Math.sqrt(Math.pow(pos.x - x, 2) + Math.pow(pos.z - z, 2)) < 30) return new THREE.Vector3(pos.x, pos.y + 8, pos.z);
+                }
+                return new THREE.Vector3(x, flatY + 8, z);
+            }
+
+            const nfcZones = {
+                '绿洲公园': { x: 112, z: 112, name: '绿洲公园' },
+                '知识学院': { x: -112, z: 112, name: '知识学院' },
+                '静谧街道': { x: -112, z: -112, name: '静谧街道' },
+                '暖阳社区': { x: 112, z: -112, name: '暖阳社区' }
+            };
+            
+            const nfcRoleMap = { 
+                'gardener': { id: 'gardener', name: '园艺师' }, 
+                'explorer': { id: 'explorer', name: '探险家' }, 
+                'chef': { id: 'chef', name: '小厨师' }, 
+                'party': { id: 'party', name: '派对大王' }, 
+                'storyteller': { id: 'storyteller', name: '故事大王' } 
+            };
+
+            // ── 触发预设镜头动画 ──────────────────────────────────────
+            function triggerZoneCinema(zoneName, charWorldPos) {
+                // 直接在函数内部定义预设，避免重复声明问题，且确保THREE已加载
+                const presets = {
+                    '绿洲公园':  { overviewPos: new THREE.Vector3( 200, 320,  280), overviewLook: new THREE.Vector3( 112, 90,  112), closeupOffset: new THREE.Vector3(-45, 55,  60) },
+                    '知识学院':  { overviewPos: new THREE.Vector3(-220, 320,  280), overviewLook: new THREE.Vector3(-112, 90,  112), closeupOffset: new THREE.Vector3( 55, 55,  55) },
+                    '静谧街道':  { overviewPos: new THREE.Vector3(-220, 320, -280), overviewLook: new THREE.Vector3(-112, 90, -112), closeupOffset: new THREE.Vector3( 55, 55, -60) },
+                    '暖阳社区':  { overviewPos: new THREE.Vector3( 200, 320, -280), overviewLook: new THREE.Vector3( 112, 90, -112), closeupOffset: new THREE.Vector3(-45, 55, -60) },
+                };
+                const preset = presets[zoneName];
+                if (!preset) {
+                    // 没有预设也给一个通用特写
+                    skipOrbitCalc = true;
+                    camTargetLook.copy(charWorldPos).add(new THREE.Vector3(0, 10, 0));
+                    camTargetPos.copy(charWorldPos).add(new THREE.Vector3(-50, 45, 55));
+                    setTimeout(() => { skipOrbitCalc = false; }, 2800);
+                    return;
+                }
+                // 第一阶段目标：区域俯瞰
+                cinemaTargetPos.copy(preset.overviewPos);
+                cinemaTargetLook.copy(preset.overviewLook);
+                // 第二阶段目标：角色特写（基于角色世界坐标 + 偏移）
+                cinemaCloseupPos.copy(charWorldPos).add(preset.closeupOffset);
+                cinemaCloseupLook.copy(charWorldPos).add(new THREE.Vector3(0, 12, 0));
+
+                cinemaState = 'overview';
+                cinemaTimer = 0;
+                skipOrbitCalc = true;
+            }
+            // ─────────────────────────────────────────────────────────
+
+            function autoPlaceNfcPiece(charName, role, zoneName) {
+                if (placedPieces[role]) { showNfcToast(`${charName} 已在游戏垫上`); return; }
+                
+                // 根据 zoneName 查找区域，找不到就随机选一个
+                let zone = nfcZones[zoneName];
+                if (!zone) {
+                    const zoneKeys = Object.keys(nfcZones);
+                    const randomKey = zoneKeys[Math.floor(Math.random() * zoneKeys.length)];
+                    zone = nfcZones[randomKey];
+                    console.warn(`NFC zoneName 无效: "${zoneName}"，已随机分配到: ${zone.name}`);
+                    showNfcToast(`⚠️ 区域"${zoneName}"无效，${charName} 随机降落在${zone.name}`);
+                }
+                const localX = zone.x + (Math.random() - 0.5) * 60; 
+                const localZ = zone.z + (Math.random() - 0.5) * 60;
+                const dropPos = findGroundPosition(localX, localZ);
+                if (!dropPos) { showNfcToast(`${charName} 放置失败`); return; }
+
+                const charMesh = createVoxelCharacter(role);
+                charMesh.position.copy(dropPos); charMesh.userData.startY = dropPos.y; charMesh.scale.set(0.01, 0.01, 0.01);
+                planetGroup.add(charMesh);
+
+                const marker = document.createElement('div'); marker.className = 'piece-label-only'; marker.innerHTML = `<div class="map-label">${charName}</div>`; markersLayer.appendChild(marker);
+
+                placedPieces[role] = { el: marker, mesh: charMesh, localPos: dropPos, zoneName: zone.name, charName: charName, fromNfc: true };
+                marker.onclick = () => { marker.remove(); planetGroup.remove(charMesh); delete placedPieces[role]; document.querySelector(`[data-id="${role}"]`).style.opacity='1'; window.playSfx('pickup'); showNfcToast(`${charName} 已收回`); };
+                
+                const dockEl = document.querySelector(`[data-id="${role}"]`); if (dockEl) dockEl.style.opacity = '0';
+                window.playSfx('drop'); showNfcToast(`📱 ${charName} 已降落在${zone.name}！`);
+                
+                charMesh.userData.isHappy = true; charMesh.userData.animTimer = 0;
+                
+                // ✅ 预设镜头动画：先俯瞰区域，再推近特写角色
+                const charWorldPos = dropPos.clone().applyMatrix4(planetGroup.matrixWorld);
+                triggerZoneCinema(zone.name, charWorldPos);
+            }
+
+            function pollNfcEvent() {
+                fetch(`${getNfcBridgeUrl()}/event`)
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => {
+                        console.log('[NFC] 收到数据:', JSON.stringify(data));  // 调试日志
+                        if (data.event && data.timestamp && data.timestamp > nfcLastEventTime) {
+                            nfcLastEventTime = data.timestamp;
+                            if (data.event === 'place' && data.name && data.role) {
+                                // 直接使用Arduino传来的zone，找不到才随机
+                                const zoneName = data.zone;
+                                console.log(`[NFC] 放置 ${data.name}，区域: ${zoneName}`);
+                                if (nfcRoleMap[data.role]) autoPlaceNfcPiece(data.name, data.role, zoneName);
+                            } else if (data.event === 'remove' && data.name && data.role) {
+                                const role = data.role;
+                                if (placedPieces[role]) {
+                                    placedPieces[role].el.remove(); planetGroup.remove(placedPieces[role].mesh); delete placedPieces[role];
+                                    const dockEl = document.querySelector(`[data-id="${role}"]`); if (dockEl) dockEl.style.opacity = '1';
+                                    window.playSfx('pickup'); showNfcToast(`${data.name} 已离开游戏垫`);
+                                }
+                            }
+                            fetch(`${getNfcBridgeUrl()}/clear`).catch(() => {});
+                        }
+                        if (data.event && data.event !== 'none') updateNfcStatus('connected', 'NFC 已连接');
+                    }).catch(err => { 
+                        console.error('[NFC] 轮询错误:', err);
+                        updateNfcStatus('error', 'NFC 等待中'); 
+                    });
+            }
+
+            let nfcPollingInterval = null; let nfcLastEventTime = 0;
+            function startNfcPolling() { if (nfcPollingInterval) return; nfcPollingInterval = setInterval(pollNfcEvent, 600); updateNfcStatus('', 'NFC 连接中...'); }
+            function stopNfcPolling() { if (nfcPollingInterval) { clearInterval(nfcPollingInterval); nfcPollingInterval = null; } updateNfcStatus('', 'NFC 等待中'); }
+
+            // ================= 7. 动画主循环 =================
+            function animate() {
+                requestAnimationFrame(animate);
+                const time = Date.now() * 0.003;
+
+                // ── 预设镜头状态机 ────────────────────────────────────
+                if (cinemaState === 'overview') {
+                    cinemaTimer++;
+                    // 平滑推向俯瞰机位
+                    camTargetPos.lerp(cinemaTargetPos, 0.07);
+                    camTargetLook.lerp(cinemaTargetLook, 0.07);
+                    if (cinemaTimer >= cinemaPhase1Frames) {
+                        cinemaState = 'closeup';
+                        cinemaTimer = 0;
+                    }
+                } else if (cinemaState === 'closeup') {
+                    cinemaTimer++;
+                    // 平滑推向特写机位
+                    camTargetPos.lerp(cinemaCloseupPos, 0.06);
+                    camTargetLook.lerp(cinemaCloseupLook, 0.06);
+                    if (cinemaTimer >= cinemaPhase2Frames) {
+                        // ✅ 定格特写：同步 cameraDist，保持缩放可用
+                        cinemaState = 'locked';
+                        skipOrbitCalc = true;
+                        cameraDist = camTargetPos.distanceTo(camTargetLook);
+                    }
+                } else if (cinemaState === 'locked') {
+                    // 锁定状态：相机停在当前位置，不更新
+                }
+                // ─────────────────────────────────────────────────────
+
+                camera.position.lerp(camTargetPos, 0.05); camera.lookAt(camTargetLook);
+                
+                stars.rotation.y += 0.0002; stars.rotation.x += 0.0001;
+                nebulas.forEach(n => { n.mesh.position.x += n.speedX; n.mesh.position.y += n.speedY; });
+                rings.forEach(r => r.mesh.rotation.z += r.speed);
+
+                // 相机环绕游戏垫（水平旋转 + 高度控制）
+                if (!skipOrbitCalc) {
+                    const targetX = cameraDist * Math.sin(cameraAngle);
+                    const targetZ = cameraDist * Math.cos(cameraAngle);
+                    camTargetPos.set(targetX, cameraHeight, targetZ);
+                    camTargetLook.set(0, 0, 0);
+                }
+
+                // 首页游戏垫自动缓慢旋转
+                if (!isPlayMode) {
+                    planetTargetRotY += 0.003;
+                }
+
+                // 游戏垫水平旋转（插值平滑），动画播放期间冻结
+                if (cinemaState !== 'overview' && cinemaState !== 'closeup') {
+                    planetGroup.rotation.y += (planetTargetRotY - planetGroup.rotation.y) * 0.05;
+                }
+                
+                Object.values(placedPieces).forEach(data => {
+                    if (data.mesh) {
+                        data.mesh.scale.lerp(new THREE.Vector3(1.8, 1.8, 1.8), 0.15); 
+                        data.mesh.position.y = data.mesh.userData.startY + Math.sin(time + data.mesh.userData.timeOffset) * 2; 
+                        
+                        const localCamPos = planetGroup.worldToLocal(camera.position.clone()); 
+                        const angle = Math.atan2(localCamPos.x - data.mesh.position.x, localCamPos.z - data.mesh.position.z);
+                        data.mesh.rotation.set(0, angle, 0); 
+                        
+                        const inner = data.mesh.userData.innerGroup; 
+                        const limbs = data.mesh.userData.limbs; 
+                        const id = data.mesh.userData.id;
+                        
+                        if (data.mesh.userData.isHappy && inner && limbs) {
+                            data.mesh.userData.animTimer += 0.05; 
+                            const t = data.mesh.userData.animTimer;
+                            if (t < Math.PI * 2.5) { 
+                                inner.position.y = 0; inner.rotation.set(0, 0, 0); 
+                                limbs.armL.rotation.set(0, 0, 0); limbs.armR.rotation.set(0, 0, 0); 
+                                limbs.legL.rotation.set(0, 0, 0); limbs.legR.rotation.set(0, 0, 0); 
+                                limbs.legL.position.set(-1.5, 1.5, 0); limbs.legR.position.set(1.5, 1.5, 0);
+                                
+                                if (id === 'gardener') { inner.position.y = Math.abs(Math.sin(t * 2)) * 3; limbs.armL.rotation.z = Math.sin(t * 4) * 0.5 - 2.5; limbs.armR.rotation.z = -Math.sin(t * 4) * 0.5 + 2.5; }
+                                else if (id === 'explorer') { limbs.armL.rotation.x = Math.sin(t * 4) * 1.5; limbs.armR.rotation.x = -Math.sin(t * 4) * 1.5; limbs.legL.rotation.x = -Math.sin(t * 4) * 1.2; limbs.legR.rotation.x = Math.sin(t * 4) * 1.2; inner.position.y = Math.abs(Math.sin(t * 8)) * 1.5; }
+                                else if (id === 'chef') { inner.rotation.z = Math.sin(t * 2) * 0.2; limbs.armR.rotation.x = -1.5 + Math.sin(t * 6) * 0.5; limbs.armR.rotation.z = Math.cos(t * 6) * 0.5; limbs.armL.rotation.z = -0.5; limbs.legL.position.y = 1.5 + Math.abs(Math.sin(t * 4)) * 1.5; }
+                                else if (id === 'party') { limbs.armL.rotation.z = Math.sin(t * 2) > 0 ? -2.5 : 0; limbs.armR.rotation.z = Math.sin(t * 2) < 0 ? 2.5 : 0; inner.rotation.y = Math.sin(t) * 0.5; inner.position.y = Math.abs(Math.sin(t * 4)) * 2; }
+                                else if (id === 'storyteller' || id === 'story') { limbs.armL.rotation.x = -1.5; limbs.armR.rotation.x = -Math.abs(Math.sin(t * 2)) * 1.5; inner.rotation.x = Math.sin(t * 2) * 0.15; inner.position.y = Math.abs(Math.sin(t * 2)) * 1.5; }
+                            } else { 
+                                data.mesh.userData.isHappy = false; inner.position.y = 0; inner.rotation.set(0, 0, 0); limbs.armL.rotation.set(0, 0, 0); limbs.armR.rotation.set(0, 0, 0); limbs.legL.rotation.set(0, 0, 0); limbs.legR.rotation.set(0, 0, 0); 
+                            }
+                        }
+                    }
+                });
+
+                updateMarkers(); renderer.render(scene, camera);
+            }
+            animate();
+
+            // ================= 8. 操控事件绑定 =================
+            const canvasEl = renderer.domElement;
+            canvasEl.addEventListener('mousedown', e => { if(!isPlayMode) return; isDraggingMap = true; previousPointer = { x: e.clientX, y: e.clientY }; });
+            canvasEl.addEventListener('touchstart', e => {
+                if (e.touches.length >= 2) { e.preventDefault(); }
+                if(!isPlayMode) return;
+                if(e.touches.length === 1) { isDraggingMap = true; previousPointer = { x: e.touches[0].clientX, y: e.touches[0].clientY }; } 
+                else if(e.touches.length === 2) { isDraggingMap = false; const dx = e.touches[0].clientX - e.touches[1].clientX; const dy = e.touches[0].clientY - e.touches[1].clientY; previousPinchDist = Math.sqrt(dx*dx + dy*dy); }
+            }, {passive: false});
+
+            window.addEventListener('mousemove', e => {
+                if(!isPlayMode || !isDraggingMap) return;
+                // 左右拖拽 = 旋转游戏垫
+                planetTargetRotY += (e.clientX - previousPointer.x) * 0.01;
+                // 上下拖拽 = 俯仰（往上滑仰视=低，往下滑俯视=高）
+                cameraHeight -= (e.clientY - previousPointer.y) * 3;
+                cameraHeight = Math.max(100, Math.min(700, cameraHeight));
+                previousPointer = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('touchmove', e => {
+                if (e.touches.length >= 2) { e.preventDefault(); }
+                if(!isPlayMode) return;
+                if(e.touches.length === 1 && isDraggingMap) {
+                    // 左右拖拽 = 旋转游戏垫
+                    planetTargetRotY += (e.touches[0].clientX - previousPointer.x) * 0.01; 
+                    // 往上滑仰视=低，往下滑俯视=高
+                    cameraHeight -= (e.touches[0].clientY - previousPointer.y) * 3;
+                    cameraHeight = Math.max(100, Math.min(700, cameraHeight));
+                    previousPointer = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                } else if (e.touches.length === 2) {
+                    const dist = Math.sqrt(Math.pow(e.touches[0].clientX - e.touches[1].clientX, 2) + Math.pow(e.touches[0].clientY - e.touches[1].clientY, 2));
+                    const delta = previousPinchDist - dist;
+                    if (cinemaState === 'locked') {
+                        const dir = camTargetPos.clone().sub(camTargetLook).normalize();
+                        const newPos = camTargetPos.clone().add(dir.multiplyScalar(delta * 2));
+                        if (newPos.distanceTo(camTargetLook) >= 80 && newPos.distanceTo(camTargetLook) <= 2000) {
+                            camTargetPos.copy(newPos);
+                        }
+                    } else {
+                        cameraDist += delta * 2;
+                        cameraDist = Math.max(300, Math.min(1200, cameraDist));
+                    }
+                    previousPinchDist = dist;
+                }
+            }, {passive: false});
+
+            window.addEventListener('mouseup', () => { isDraggingMap = false; }); 
+            window.addEventListener('touchend', () => { isDraggingMap = false; });
+            canvasEl.addEventListener('wheel', e => {
+                if(!isPlayMode) return;
+                if (cinemaState === 'locked') {
+                    // 定格状态：滚轮直接推拉镜头距离
+                    const dir = camTargetPos.clone().sub(camTargetLook).normalize();
+                    const delta = e.deltaY * 0.5;
+                    const newPos = camTargetPos.clone().add(dir.multiplyScalar(delta));
+                    if (newPos.distanceTo(camTargetLook) >= 80 && newPos.distanceTo(camTargetLook) <= 2000) {
+                        camTargetPos.copy(newPos);
+                    }
+                } else {
+                    cameraDist += e.deltaY * 0.5;
+                    cameraDist = Math.max(300, Math.min(1200, cameraDist));
+                }
+            }, {passive: true});
+
+            // ================= 9. 拖拽降落逻辑 =================
+            document.querySelectorAll('.piece-img-container').forEach(c => {
+                const handleStart = (e) => {
+                    if (c.style.opacity === '0') return;
+                    
+                    if (audioCtx && audioCtx.state === 'suspended') {
+                        audioCtx.resume();
+                    }
+                    
+                    const touch = e.type.includes('mouse') ? e : e.touches[0];
+                    dragPiece = c; ghostEl = c.cloneNode(true); ghostEl.className = 'piece-dragging'; ghostEl.style.opacity = '1';
+                    document.body.appendChild(ghostEl); 
+                    if (ghostEl) { ghostEl.style.left = touch.clientX + 'px'; ghostEl.style.top = touch.clientY + 'px'; }
+                    c.style.opacity = '0'; window.playSfx('pickup');
+                };
+                c.addEventListener('mousedown', handleStart); c.addEventListener('touchstart', handleStart, {passive: false});
+            });
+
+            const handleMoveDrag = (e) => {
+                if (!ghostEl) return; e.preventDefault();
+                let x = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                let y = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+                ghostEl.style.left = x + 'px'; ghostEl.style.top = y + 'px';
+            };
+            window.addEventListener('mousemove', handleMoveDrag); window.addEventListener('touchmove', handleMoveDrag, {passive: false});
+            
+            const drop = (e) => {
+                if(!dragPiece || !ghostEl) return;
+                const touch = e.type.includes('mouse') ? e : e.changedTouches[0];
+                mouse.x = (touch.clientX / window.innerWidth) * 2 - 1; mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1; raycaster.setFromCamera(mouse, camera);
+                const hits = raycaster.intersectObjects(zonesObjects); let dropSuccess = false;
+                
+                if(hits.length > 0) {
+                    const pieceId = dragPiece.dataset.id; 
+                    const pieceName = dragPiece.dataset.name; 
+                    if(placedPieces[pieceId]) { placedPieces[pieceId].el.remove(); planetGroup.remove(placedPieces[pieceId].mesh); }
+                    
+                    const charMesh = createVoxelCharacter(pieceId);
+                    const localPos = planetGroup.worldToLocal(hits[0].point.clone());
+                    charMesh.position.copy(localPos);
+                    charMesh.userData.startY = localPos.y; 
+                    charMesh.scale.set(0.01, 0.01, 0.01);
+                    planetGroup.add(charMesh);
+
+                    const marker = document.createElement('div'); marker.className = 'piece-label-only';
+                    marker.innerHTML = `<div class="map-label">${pieceName}</div>`;
+                    markersLayer.appendChild(marker);
+                    
+                    placedPieces[pieceId] = { el: marker, mesh: charMesh, localPos: localPos, zoneName: hits[0].object.userData.name, charName: pieceName };
+                    
+                    marker.onclick = (ev) => { 
+                        ev.stopPropagation();
+                        marker.remove(); planetGroup.remove(charMesh); delete placedPieces[pieceId]; 
+                        document.querySelector(`[data-id="${pieceId}"]`).style.opacity='1'; window.playSfx('pickup');
+                    };
+                    
+                    window.playSfx('drop'); dropSuccess = true;
+
+                    charMesh.userData.isHappy = true; charMesh.userData.animTimer = 0;
+                    // ✅ 预设镜头动画
+                    const worldPos = hits[0].point.clone();
+                    const zoneName = hits[0].object.userData.name;
+                    triggerZoneCinema(zoneName, worldPos);
+                } 
+                if (!dropSuccess) { dragPiece.style.opacity = '1'; }
+                ghostEl.remove(); ghostEl = null; dragPiece = null;
+            };
+            window.addEventListener('mouseup', drop); window.addEventListener('touchend', drop);
+
+            // ================= 10. UI & API 对接逻辑 =================
+            window.toggleAudio = () => {
+                if(bgmAudio.paused) { bgmAudio.play(); document.getElementById('audio-toggle-btn').innerText='🔊'; }
+                else { bgmAudio.pause(); document.getElementById('audio-toggle-btn').innerText='🔇'; }
+            };
+
+            window.enterGame = () => { 
+                isPlayMode = true; document.getElementById('home-ui').classList.add('hidden'); document.getElementById('play-ui').classList.add('active'); 
+                camTargetLook.set(0, 0, 0); 
+                cameraHeight = 400;   // 相机高度
+                cameraDist = 550;     // 相机距离
+                cameraAngle = 0;      // 水平角度重置
+                planetTargetRotY = 0;
+                
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                
+                // 播放背景音乐并处理浏览器自动播放拦截
+                bgmAudio.play().catch(e => console.warn("背景音乐可能由于浏览器自动播放限制无法启动", e)); 
+                setTimeout(() => startNfcPolling(), 1500);
+            };
+            window.backToHome = () => { 
+                isPlayMode = false; document.getElementById('home-ui').classList.remove('hidden'); document.getElementById('play-ui').classList.remove('active'); 
+                camTargetLook.set(0, 50, 0); cameraHeight = 300; cameraDist = 750; cameraAngle = 0;
+                cinemaState = 'idle'; skipOrbitCalc = false;
+                stopNfcPolling();
+            };
+
+            window.openSettings = () => { document.getElementById('settings-modal').classList.add('show'); window.playSfx('pickup'); };
+            
+            window.closeModals = () => { 
+                document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show')); 
+                if(window.speechSynthesis) window.speechSynthesis.cancel(); 
+                
+                if (typeof currentStoryAudio !== 'undefined' && currentStoryAudio && !currentStoryAudio.paused) {
+                    currentStoryAudio.pause();
+                    const btnRead = document.getElementById('btn-read');
+                    if (btnRead) btnRead.innerText = "▶️ 继续聆听";
+                }
+            };
+            
+            window.closeModalsOnBg = (e) => { if(e.target.classList.contains('modal-overlay')) window.closeModals(); };
+            window.saveSettings = () => { 
+                const apiKeyInput = document.getElementById('apiKey');
+                if (apiKeyInput) {
+                    localStorage.setItem('gemini_api_key_v2', apiKeyInput.value.trim()); 
+                }
+                localStorage.setItem('nfc_bridge_ip', document.getElementById('nfcBridgeIp').value.trim()); 
+                window.closeModals(); 
+            };
+
+            let currentStoryText = "";
+            let currentStoryAudio = null;
+
+            // ================= API 重试机制 =================
+            async function fetchWithRetry(url, options, maxRetries = 3) {
+                let lastError = null;
+                
+                console.log('[API] 开始请求:', url.replace(/key=[^&]+/, 'key=***'));
+                
+                for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                    try {
+                        const response = await fetch(url, options);
+                        const responseText = await response.text();
+                        
+                        console.log(`[API] 请求完成，状态码: ${response.status}`);
+                        
+                        if (!responseText) throw new Error("API 返回了空内容");
+                        
+                        const data = JSON.parse(responseText);
+                        
+                        // 如果是 503 错误且还有重试次数，继续重试
+                        if (!response.ok && data.error?.code === 503 && attempt < maxRetries) {
+                            const waitTime = Math.pow(2, attempt) * 1000; // 指数退避：1s, 2s, 4s
+                            console.log(`[API] 遇到 503 错误，第 ${attempt + 1} 次重试，${waitTime}ms 后重试...`);
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                            continue;
+                        }
+                        
+                        if (!response.ok) throw new Error(data.error?.message || `HTTP ${response.status}`);
+                        
+                        return { response, data, responseText };
+                    } catch (error) {
+                        lastError = error;
+                        
+                        // 如果是网络错误或 503，且还有重试次数
+                        if (attempt < maxRetries && (error.message.includes('503') || error.name === 'TypeError')) {
+                            const waitTime = Math.pow(2, attempt) * 1000;
+                            console.log(`[API] 请求失败，${waitTime}ms 后第 ${attempt + 1} 次重试...`, error.message);
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                            continue;
+                        }
+                        
+                        throw error;
+                    }
+                }
+                
+                throw lastError;
+            }
+
+            // 角色身份设定
+            const roleIdentity = {
+                'gardener':   '擅长照顾植物、种花弄草，小帮手',
+                'explorer':   '爱冒险、善于观察和发现新事物',
+                'chef':       '对做饭和美食充满热情，喜欢动手实践',
+                'party':      '社交达人，善于组织活动、照顾朋友',
+                'storyteller':'想象力丰富，擅长讲故事和编剧情'
+            };
+
+            // 区域名称简化映射
+            const zoneSimpleName = {
+                '绿洲公园': '公园',
+                '知识学院': '学校',
+                '静谧街道': '街道',
+                '暖阳社区': '社区'
+            };
+
+            window.generateStory = async () => {
+                window.playSfx('pickup');
+                const modal = document.getElementById('story-modal'); 
+                const content = document.getElementById('storyContent'); 
+                const btnRead = document.getElementById('btn-read');
+                const btnDraw = document.getElementById('btn-draw');
+                const apiKey = localStorage.getItem('gemini_api_key_v2') || ""; 
+                
+                if (currentStoryAudio) {
+                    currentStoryAudio.pause();
+                    currentStoryAudio = null;
+                }
+
+                modal.classList.add('show'); 
+                btnRead.style.display = 'none';
+                btnDraw.style.display = 'none';
+                document.getElementById('imageContainer').style.display = 'none';
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+                
+                const piecesArray = Object.values(placedPieces);
+                if(piecesArray.length === 0) { 
+                    content.innerHTML = "<span style='color:#F87171'>📡 任务失联：当前区域没有英雄在场。请先把角色拖放到任务地点！</span>"; 
+                    return; 
+                }
+
+                content.innerHTML = `<span style="color:#8B5CF6; font-weight:bold;">⚡ 正在接收求助信号，马上开始行动...</span>`;
+
+                try {
+                    // 构建角色身份描述，使用简化后的区域名
+                    const charList = piecesArray.map(p => {
+                        const identity = roleIdentity[p.id] || '乐于助人的小朋友';
+                        const zone = zoneSimpleName[p.zoneName] || p.zoneName;
+                        return `${p.charName}（${identity}）在${zone}`;
+                    }).join('、');
+                    const mainChar = piecesArray[0];
+                    const mainIdentity = mainChar ? roleIdentity[mainChar.id] || '乐于助人的小朋友' : '乐于助人的小朋友';
+
+                    const prompt = `${mainChar?.charName || '小朋友'}收到了一条求助——${mainChar?.charName || '小朋友'}的"超能力"要派上用场了！${charList}。请根据他们的身份和所在地点，写一个200字左右的完整故事，要有开头（接到求助）、经过（遇到小困难、想办法解决）、高潮（最关键的时刻）和结尾（问题解决，获得认可）。故事要充分发挥每个角色的身份特长，让角色的"超能力"在关键时刻发挥作用。语言朴实自然，有自然的对话穿插，地点切换要有合理的契机，避免过于梦幻或散文化的表达。直接输出故事正文，不要标题。`;
+                    const { response, data, responseText } = await fetchWithRetry(
+                        `${getNfcBridgeUrl()}/proxy/gemini/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+                        {
+                            method: "POST", 
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ 
+                                contents: [{ parts: [{ text: prompt }] }], 
+                                systemInstruction: { 
+                                    parts: [{ 
+                                        text: "你是一位擅长写儿童生活故事的作家，语言朴实自然，故事有对话有细节，像小学生真实会经历的事情。不要写成童话或散文，要有情节起伏。故事里所有角色的名字必须使用题目中给出的角色原名（如园艺师、探险家、小厨师、派对大王、故事大王），严禁替换成小明、小红、小华等任何其他名字。" 
+                                    }] 
+                                } 
+                            })
+                        }
+                    );
+                    
+                    currentStoryText = data.candidates[0].content.parts[0].text;
+                    if (currentStoryText) { 
+                        content.innerText = currentStoryText; 
+                        btnRead.style.display = 'block'; 
+                        btnDraw.style.display = 'block'; 
+                        window.playSfx('drop'); 
+                    }
+                } catch (error) {
+                    let errorMsg = error.message || "未知错误";
+                    let errorColor = '#F87171';
+                    
+                    if (errorMsg.includes('503') || errorMsg.includes('高需求') || errorMsg.includes('high demand')) {
+                        errorMsg = '⚠️ 信号塔繁忙：Gemini 服务器当前负载过高，已自动重试但仍失败，请稍后再试（错误 503）';
+                        errorColor = '#FBBF24';
+                    } else if (errorMsg.includes('API key') || errorMsg.includes('API_KEY')) {
+                        errorMsg = '🔑 密钥失效：API 密钥无效或已过期，请在设置中重新输入';
+                        errorColor = '#F87171';
+                    } else if (errorMsg.includes('quota')) {
+                        errorMsg = '⏱️ 次数耗尽：API 配额已用完，请稍后重试或更换密钥';
+                        errorColor = '#FBBF24';
+                    }
+                    
+                    content.innerHTML = `<span style='color:${errorColor}'>❌ ${errorMsg}。</span>`;
+                }
+            };
+
+            window.generateImage = async () => {
+                window.playSfx('pickup');
+                const apiKey = localStorage.getItem('gemini_api_key_v2') || ""; 
+                const imgEl = document.getElementById('generatedImage'); 
+                const btnDraw = document.getElementById('btn-draw');
+                imgEl.src = ""; 
+                imgEl.style.display = 'none'; 
+                
+                let container = document.getElementById('imageContainer');
+                container.style.display = 'block';
+                
+                let loadingText = document.getElementById('img-loading-text');
+                if (!loadingText) {
+                    loadingText = document.createElement('p');
+                    loadingText.id = 'img-loading-text';
+                    loadingText.style.color = '#8B5CF6';
+                    loadingText.style.padding = '20px';
+                    container.appendChild(loadingText);
+                }
+                loadingText.innerText = "🎨 正在绘制任务绘本，请稍候...";
+                loadingText.style.display = 'block';
+                
+                btnDraw.classList.add('btn-disabled');
+                
+                try {
+                    const characters = Object.values(placedPieces).map(p => p.charName).join(' and ');
+                    const prompt = `ABSOLUTELY NO TEXT, NO WORDS, NO TYPOGRAPHY, NO WRITING, NO LETTERS, NO NUMBERS anywhere in the image. A cute, magical voxel-style isometric 3D illustration of ${characters} in a toy map environment. Pure visual scene only - no written language, no signs, no labels, no books with readable text, no text on clothing. Toy-like, colorful, tilt-shift photography style.`;
+                    
+                    const { response, data, responseText } = await fetchWithRetry(
+                        `${getNfcBridgeUrl()}/proxy/gemini/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
+                        {
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/json' }, 
+                            body: JSON.stringify({ instances: { prompt: prompt }, parameters: { sampleCount: 1 } })
+                        }
+                    );
+                    
+                    if (data.predictions && data.predictions[0]) {
+                        imgEl.src = `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
+                        imgEl.style.display = 'inline-block';
+                        window.playSfx('drop');
+                    } else {
+                        throw new Error("未能生成图片数据");
+                    }
+                } catch (e) {
+                    console.error("生成图片失败", e);
+                    let errorMsg = e.message || "未知错误";
+                    let errorColor = '#F87171';
+                    
+                    if (errorMsg.includes('503') || errorMsg.includes('高需求') || errorMsg.includes('high demand')) {
+                        errorMsg = '⚠️ 绘图信号塔繁忙：服务器负载过高，已自动重试但仍失败，请稍后再试（错误 503）';
+                        errorColor = '#FBBF24';
+                    } else if (errorMsg.includes('API key') || errorMsg.includes('API_KEY')) {
+                        errorMsg = '🔑 密钥失效：API 密钥无效或已过期，请在设置中重新输入';
+                        errorColor = '#F87171';
+                    } else if (errorMsg.includes('quota')) {
+                        errorMsg = '⏱️ 次数耗尽：API 配额已用完，请稍后重试或更换密钥';
+                        errorColor = '#FBBF24';
+                    }
+                    
+                    loadingText.innerText = `❌ 绘图魔法失败了：${errorMsg}`;
+                    loadingText.style.color = errorColor;
+                    return; 
+                } finally {
+                    btnDraw.classList.remove('btn-disabled');
+                }
+                loadingText.style.display = 'none'; 
+            };
+
+            window.readStory = async () => {
+                if (!currentStoryText) return;
+                const btnRead = document.getElementById('btn-read'); 
+                const apiKey = localStorage.getItem('gemini_api_key_v2') || ""; 
+
+                if (currentStoryAudio) {
+                    if (currentStoryAudio.paused) {
+                        if (currentStoryAudio.currentTime >= currentStoryAudio.duration) {
+                            currentStoryAudio.currentTime = 0;
+                        }
+                        currentStoryAudio.play();
+                        btnRead.innerText = "🔊 故事播放中...";
+                    } else {
+                        currentStoryAudio.pause();
+                        btnRead.innerText = "▶️ 继续聆听";
+                    }
+                    return;
+                }
+
+                btnRead.innerText = "🔊 准备音频中...";
+                btnRead.classList.add('btn-disabled');
+
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: "用温柔的语气说：" + currentStoryText }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } } }, model: "gemini-2.5-flash-preview-tts" })
+                    });
+                    
+                    const responseText = await response.text();
+                    if (!responseText) throw new Error("API 返回了空内容");
+                    const data = JSON.parse(responseText);
+                    if (!response.ok) throw new Error(data.error?.message || "请求失败");
+                    
+                    const base64Audio = data.candidates[0].content.parts[0].inlineData.data;
+                    const mimeType = data.candidates[0].content.parts[0].inlineData.mimeType || "audio/L16; rate=24000";
+                    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1]) : 24000;
+                    
+                    const binaryString = window.atob(base64Audio);
+                    const pcmData = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        pcmData[i] = binaryString.charCodeAt(i);
+                    }
+
+                    const wavBlob = pcmToWav(pcmData.buffer, sampleRate);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+                    
+                    currentStoryAudio = new Audio(audioUrl); 
+                    currentStoryAudio.play();
+                    
+                    btnRead.innerText = "🔊 故事播放中...";
+                    currentStoryAudio.onended = () => { 
+                        btnRead.innerText = "🎵 重新聆听"; 
+                    };
+                } catch (e) {
+                    console.error("TTS失败", e);
+                    btnRead.innerText = "🎵 重新聆听 (异常)";
+                } finally {
+                    btnRead.classList.remove('btn-disabled');
+                }
+            };
+
+            window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
+            const savedKey = localStorage.getItem('gemini_api_key_v2'); if(savedKey) document.getElementById('apiKey').value = savedKey;
+            const savedNfcIp = localStorage.getItem('nfc_bridge_ip'); if(savedNfcIp) document.getElementById('nfcBridgeIp').value = savedNfcIp;
+        })();
+    </script>
+</body>
+</html>
