@@ -1407,23 +1407,32 @@
                     const mainChar = piecesArray[0];
 
                     const prompt = `${mainChar?.charName || 'The young hero'} just got a call for help — this is exactly what ${mainChar?.charName || 'the hero'} is good at. In the scene: ${charList}. Write one complete story of roughly 200 words with a clear shape: a beginning where the call for help arrives, a middle where a real small difficulty gets in the way, a turning point where the hero's particular strength is what saves the day, and an ending where the problem is genuinely solved. Let each character's own strength matter at the critical moment. Keep the language plain and natural with some short dialogue, and move between places only when there is a reason to. Output the story only, with no title.`;
-                    const { data } = await fetchWithRetry(
-                        `${GATEWAY_BASE}/chat/completions`,
-                        {
-                            method: "POST", 
-                            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${gatewayKey()}` },
-                            body: JSON.stringify({ 
-                                model: STORY_MODEL,
-                                messages: [
-                                    { role: "system", content: "You write everyday stories for young children. Keep the language plain and natural, with short dialogue and small concrete details, the kind of thing a primary school child could really experience. Do not write a fairy tale or an essay - there must be a real difficulty and a turning point. Always refer to each character by the exact name you were given (for example Gardener, Explorer, Little Chef, Party Host, Storyteller) and never swap them for invented names." },
-                                    { role: "user", content: prompt }
-                                ],
-                                max_tokens: 800
-                            })
-                        }
-                    );
-                    
-                    currentStoryText = (data.choices?.[0]?.message?.content || '').trim();
+                    const storyOptions = {
+                        method: "POST", 
+                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${gatewayKey()}` },
+                        body: JSON.stringify({ 
+                            model: STORY_MODEL,
+                            messages: [
+                                { role: "system", content: "You write everyday stories for young children. Keep the language plain and natural, with short dialogue and small concrete details, the kind of thing a primary school child could really experience. Do not write a fairy tale or an essay - there must be a real difficulty and a turning point. Always refer to each character by the exact name you were given (for example Gardener, Explorer, Little Chef, Party Host, Storyteller) and never swap them for invented names." },
+                                { role: "user", content: prompt }
+                            ],
+                            // gpt-6-luna is a reasoning model: its hidden thinking
+                            // draws from the same token budget as the story, so the
+                            // budget has to cover both or content comes back empty.
+                            max_tokens: 2500
+                        })
+                    };
+
+                    // An empty reply is intermittent (reasoning occasionally eats
+                    // the whole budget), so retry once before falling back.
+                    let data = null;
+                    for (let storyAttempt = 0; storyAttempt < 2; storyAttempt++) {
+                        const result = await fetchWithRetry(`${GATEWAY_BASE}/chat/completions`, storyOptions, 2);
+                        data = result.data;
+                        currentStoryText = (data.choices?.[0]?.message?.content || '').trim();
+                        if (currentStoryText) break;
+                        console.warn(`[API] empty story content (finish_reason: ${data.choices?.[0]?.finish_reason}), retry ${storyAttempt + 1}`);
+                    }
                     if (!currentStoryText) throw new Error('the AI returned an empty story');
                     content.innerText = currentStoryText; 
                     setStorySource(`Written just now by the course AI service (${STORY_MODEL}).`, 'live');
