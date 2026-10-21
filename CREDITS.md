@@ -33,9 +33,11 @@ my own art direction. They are my own generated assets.
 proxy of the Easel image model), from a prompt the page builds out of the heroes you
 placed. Not stored in the repository.
 
-**Background music.** Not included. The track used during development is not mine to
-publish, so no audio file ships here. `index.html` looks for an optional `bgm.mp3` next to
-it; if you want music, supply your own file with that name.
+**Background music.** `bgm.mp3` (1.8 MB) ships with the repository — the same track used
+in my graduation project interface, supplied by me for this submission. `index.html` plays
+it automatically on the first interaction and 🔊 toggles it. Swap in any other mp3 with
+the same filename to replace it; if the file is missing the page says so plainly and the
+sound effects keep working.
 
 ## Text and data
 

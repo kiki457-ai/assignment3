@@ -330,9 +330,9 @@
             let audioCtx = null;
             try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); } catch(e) {}
             
-            // Background music is optional and deliberately not shipped in this
-            // repository (the original track is not mine to publish). Drop any
-            // mp3 named bgm.mp3 next to index.html and it will be picked up.
+            // Background music: bgm.mp3 ships with the repository, but it stays
+            // optional at runtime — if the file is ever missing, the toggle says
+            // so instead of failing, and the Web Audio effects keep working.
             let bgmAudio = new Audio();
             let bgmAvailable = false;
             bgmAudio.src = 'bgm.mp3'; 

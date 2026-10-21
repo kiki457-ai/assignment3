@@ -92,10 +92,10 @@ and the page probes the service on load. If a key is ever rotated, paste the new
 **⚙️ Settings**; it is kept in `localStorage` in your own browser and is never sent
 anywhere except to the course endpoints. Clearing both fields restores the defaults.
 
-**Optional: background music.** The original track is not mine to publish, so no audio
-file is included. Name any mp3 `bgm.mp3` and put it next to `index.html` and it will play,
-or leave it out — pressing 🔊 then tells you plainly that the file is missing, and the
-sound effects still work.
+**Background music.** `bgm.mp3` is already in the repository, so music plays on the first
+interaction and 🔊 toggles it. To use different music, replace the file with any mp3 of the
+same name. If the file is ever missing, pressing 🔊 tells you plainly that it is gone and
+the sound effects still work.
 
 ## What I added for this assignment
 
@@ -108,7 +108,7 @@ The board and the 3D island existed before this assignment. What I added here:
   shows a 🔄 Try again button.
 - **↺ Clear all**, a single reset after watching someone hunt for the individual recall
   targets during a trial.
-- **Missing-file handling** for the optional `bgm.mp3`.
+- **Missing-file handling** for `bgm.mp3`, so removing the music never breaks the page.
 - **Narration** through the browser's own speech synthesis, so 🎵 Listen works with no
   setup at all.
 - The whole interface translated into English.

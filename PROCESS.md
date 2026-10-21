@@ -148,6 +148,7 @@ one deliberate exception worth stating plainly: the **shared course API keys are
 in the source**, because the assignment's AI features are meant to run out of the box for
 whoever opens the page and the keys are class-issued, not personal. They can be
 overridden in the in-page Settings, and values typed there stay in `localStorage` and are
-never written to a file. The original background music track is deliberately excluded
-because I do not have the right to publish it — the page handles the missing file
-instead, and any royalty-free track named `bgm.mp3` dropped next to `index.html` plays.
+never written to a file. The background music (`bgm.mp3`, 1.8 MB) is committed with the
+page because the assignment is graded from the live GitHub Pages URL and a silent board
+would read as a bug. The page still treats it as optional: if the file is missing, 🔊
+says so instead of failing, and the Web Audio sound effects keep working.
