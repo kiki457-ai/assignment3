@@ -3,6 +3,11 @@
 An interactive story board. You drop a hero onto a place, ask for the mission, and the
 island tells you a story about what happened there.
 
+**Open it here:** <https://kiki457-ai.github.io/assignment3/> — a static GitHub Pages
+build of this repository. Nothing to install and no key to paste: the shared course keys
+are already in the page. If the course AI service is unreachable the page says so and the
+built-in offline story engine answers instead, so the interaction always completes.
+
 ![Storypad: the mission story written by the course AI service, with its generated illustration](assets/screenshot.png)
 
 ---
