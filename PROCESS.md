@@ -138,6 +138,13 @@ and the shared key is not opened for the audio models), so that path is implemen
 documented as a silent fallback. This is described in the README and degrades to the
 offline engine whenever the service is unreachable.
 
+**An AI music tool (used for `bgm.mp3`).** The background track is AI-generated, not taken
+from a music library or a recording. I generated it rather than downloading a track for two
+reasons: there is no third-party rights question over a file I generated, and the piece was
+made for this interface — a calm loop that sits under a children's story instead of an
+arbitrary licensed track. The page still treats it as optional, so removing it never breaks
+anything.
+
 **Vidu Q3 (used in the graduation project, not in this repository).** Used to make the
 concept video for the wider project. No output from it ships here.
 

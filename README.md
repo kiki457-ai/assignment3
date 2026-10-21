@@ -92,8 +92,8 @@ and the page probes the service on load. If a key is ever rotated, paste the new
 **⚙️ Settings**; it is kept in `localStorage` in your own browser and is never sent
 anywhere except to the course endpoints. Clearing both fields restores the defaults.
 
-**Background music.** `bgm.mp3` is already in the repository, so music plays on the first
-interaction and 🔊 toggles it. To use different music, replace the file with any mp3 of the
+**Background music.** `bgm.mp3` is already in the repository — it is AI-generated, so no
+third-party track is involved — and it plays on the first interaction, with 🔊 toggling it. To use different music, replace the file with any mp3 of the
 same name. If the file is ever missing, pressing 🔊 tells you plainly that it is gone and
 the sound effects still work.
 

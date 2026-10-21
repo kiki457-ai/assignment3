@@ -33,11 +33,12 @@ my own art direction. They are my own generated assets.
 proxy of the Easel image model), from a prompt the page builds out of the heroes you
 placed. Not stored in the repository.
 
-**Background music.** `bgm.mp3` (1.8 MB) ships with the repository — the same track used
-in my graduation project interface, supplied by me for this submission. `index.html` plays
-it automatically on the first interaction and 🔊 toggles it. Swap in any other mp3 with
-the same filename to replace it; if the file is missing the page says so plainly and the
-sound effects keep working.
+**Background music.** `bgm.mp3` (1.8 MB) ships with the repository. It is AI-generated —
+I produced the track with an AI music tool and used it in my graduation project interface,
+so there is no third-party recording and no copyrighted material in it. `index.html` plays
+it on the first interaction and 🔊 toggles it. Swap in any other mp3 with the same
+filename to replace it; if the file is missing the page says so plainly and the sound
+effects keep working.
 
 ## Text and data
 
