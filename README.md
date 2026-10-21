@@ -110,7 +110,8 @@ The board and the 3D island existed before this assignment. What I added here:
   targets during a trial.
 - **Missing-file handling** for `bgm.mp3`, so removing the music never breaks the page.
 - **Narration** through the browser's own speech synthesis, so 🎵 Listen works with no
-  setup at all.
+  setup at all, plus a voice picker and a speed slider so the reading can be made to sound
+  like a storyteller rather than a robot.
 - The whole interface translated into English.
 - The NFC hardware path removed, and the AI calls moved from a local proxy to the
   course-provided AI endpoints, so everything runs from a static page.
@@ -127,7 +128,15 @@ See [PROCESS.md](PROCESS.md) for the design decisions and the user trial behind 
   sends no CORS headers and the shared story key is not opened for the audio models), so
   the page reads stories with `speechSynthesis` instead. The Suno path is implemented in
   the code and degrades silently; if the course ever opens that model up, the AI voice
-  starts working with no code change.
+  starts working with no code change. (I checked both ways: the gateway has no audio route
+  at all — `/v1/audio/generations` returns 404 and `/v1/audio/speech` answers 403
+  `key_model_access_denied` on the shared key.)
+- **Narration quality depends on the browser.** Because the reading is done by the browser,
+  so is the voice. Storypad now picks the best voice the device actually has instead of
+  leaving the browser default (neural voices score highest, online ones next), and
+  **⚙️ Settings** lets you pick any installed voice and set the speed — the choice is
+  remembered per browser. In Microsoft Edge the list includes the `Online (Natural)`
+  voices, which are markedly smoother than the built-in desktop ones.
 - **Demo mode has a fixed vocabulary.** It draws on 4 places × 5 heroes plus the
   combinations between them, so it will repeat if you try the same pair twice. AI mode
   does not have this limit.

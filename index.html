@@ -289,6 +289,10 @@
             <input type="password" id="gatewayKey" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="sk-...">
             <p style="color:var(--text-sub); margin-top:15px;">Easel media key <span style="opacity:.6">(easel.ait4x.org — illustration & AI voice)</span></p>
             <input type="password" id="easelKey" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="paste the Easel key here...">
+            <p style="color:var(--text-sub); margin-top:15px;">Narration voice <span style="opacity:.6">(the voices installed in this browser — the neural ones are the smooth ones)</span></p>
+            <select id="voiceSelect" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF"></select>
+            <p style="color:var(--text-sub); margin-top:15px;">Narration speed <span style="opacity:.6" id="rate-value">0.9×</span></p>
+            <input type="range" id="voiceRate" min="0.6" max="1.3" step="0.05" value="0.9" style="width:100%">
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
                 <button class="back-btn" onclick="closeModals()">Cancel</button>
                 <button class="btn-primary" style="padding: 10px 20px" onclick="saveSettings()">Save</button>
@@ -1143,6 +1147,13 @@
                     const v = easelInput.value.trim();
                     if (v) localStorage.setItem('easel_api_key', v); else localStorage.removeItem('easel_api_key');
                 }
+                const voiceSel = document.getElementById('voiceSelect');
+                if (voiceSel) {
+                    if (voiceSel.value) localStorage.setItem('narrator_voice_uri', voiceSel.value);
+                    else localStorage.removeItem('narrator_voice_uri');
+                }
+                const rateInput = document.getElementById('voiceRate');
+                if (rateInput) localStorage.setItem('narrator_rate', rateInput.value);
                 window.closeModals(); 
                 // The keys may point somewhere new, so re-check the service.
                 aiServiceOnline = null;
@@ -1640,9 +1651,61 @@
                 })();
             }
 
+            // ── Narration ──
+            // The course Suno voice cannot be reached from a static page (no CORS
+            // headers on the media endpoint), so the browser reads the story. A
+            // browser's *default* voice is usually its oldest, most robotic one, so
+            // instead of leaving it alone this picks the best voice the machine
+            // actually has: neural voices first, then a warm narrator name, then
+            // anything in the right language. The player can override it in
+            // Settings and it is remembered in localStorage.
+            const NARRATOR_NAMES = /aria|jenny|sonia|libby|sara|nancy|ana|zira|hazel|susan|karen|moira|tessa|fiona/i;
+            function scoreVoice(v, lang) {
+                let s = 0;
+                if (/natural|neural/i.test(v.name)) s += 60;   // the smooth modern voices
+                if (/online/i.test(v.name)) s += 20;            // online neural: better, needs a connection
+                if (NARRATOR_NAMES.test(v.name)) s += 15;
+                if (v.localService) s += 5;                    // never stutters on a slow link
+                const l = (v.lang || '').toLowerCase();
+                if (l.startsWith(lang)) s += 40; else if (l.startsWith('en')) s += 10;
+                return s;
+            }
+            function pickNarratorVoice(lang = 'en') {
+                const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+                if (!voices.length) return null;
+                const saved = localStorage.getItem('narrator_voice_uri');
+                if (saved) { const hit = voices.find(v => v.voiceURI === saved); if (hit) return hit; }
+                return voices.slice().sort((a, b) => scoreVoice(b, lang) - scoreVoice(a, lang))[0];
+            }
+            function narratorRate() {
+                const r = parseFloat(localStorage.getItem('narrator_rate'));
+                return isNaN(r) ? 0.9 : r;
+            }
+            function refreshVoiceList() {
+                const sel = document.getElementById('voiceSelect');
+                if (!sel) return;
+                const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+                const saved = localStorage.getItem('narrator_voice_uri');
+                sel.innerHTML = '';
+                const auto = document.createElement('option');
+                auto.value = '';
+                auto.textContent = 'Best voice on this device (auto)';
+                sel.appendChild(auto);
+                voices.forEach(v => {
+                    const o = document.createElement('option');
+                    o.value = v.voiceURI;
+                    const neural = /natural|neural/i.test(v.name) ? '  ★ natural' : '';
+                    o.textContent = `${v.name} — ${v.lang}${neural}`;
+                    if (v.voiceURI === saved) o.selected = true;
+                    sel.appendChild(o);
+                });
+            }
+
             function speakWithBrowser(text, btn) {
                 const u = new SpeechSynthesisUtterance(text);
-                u.rate = 0.95;
+                const voice = pickNarratorVoice('en');
+                if (voice) { u.voice = voice; u.lang = voice.lang; }
+                u.rate = narratorRate();
                 u.pitch = 1.05;
                 u.onstart = () => { btn.innerText = "🔊 Playing the story..."; };
                 u.onend   = () => { btn.innerText = "🎵 Listen again"; };
@@ -1654,6 +1717,19 @@
             window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
             const savedGwKey = localStorage.getItem('gateway_api_key') || DEFAULT_GATEWAY_KEY; if (savedGwKey) document.getElementById('gatewayKey').value = savedGwKey;
             const savedEaselKey = localStorage.getItem('easel_api_key') || DEFAULT_EASEL_KEY; if (savedEaselKey) document.getElementById('easelKey').value = savedEaselKey;
+            // Voices are loaded asynchronously by the browser, so fill the list now
+            // and again whenever the browser finishes discovering them.
+            if (window.speechSynthesis) {
+                refreshVoiceList();
+                window.speechSynthesis.onvoiceschanged = refreshVoiceList;
+                const rateInput = document.getElementById('voiceRate');
+                const rateLabel = document.getElementById('rate-value');
+                if (rateInput) {
+                    rateInput.value = narratorRate();
+                    if (rateLabel) rateLabel.textContent = Number(narratorRate()).toFixed(2) + '×';
+                    rateInput.addEventListener('input', () => { if (rateLabel) rateLabel.textContent = Number(rateInput.value).toFixed(2) + '×'; });
+                }
+            }
             // Probe the AI service once on load so the badge is ready by the time
             // the player reaches the board.
             probeAiService();
