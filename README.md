@@ -113,6 +113,9 @@ The board and the 3D island existed before this assignment. What I added here:
   shows a 🔄 Try again button.
 - **↺ Clear all**, a single reset after watching someone hunt for the individual recall
   targets during a trial.
+- **A next-step hint and a "drag me" tag on the dock**, both from the user trial: the hint
+  names only the step you are on, the dock tag disappears once a hero is placed, and
+  ⚡ Accept the mission glows while it is the live step.
 - **Missing-file handling** for `bgm.mp3`, so removing the music never breaks the page.
 - **Narration** through the browser's own speech synthesis, so 🎵 Listen works with no
   setup at all, plus a voice picker and a speed slider so the reading can be made to sound

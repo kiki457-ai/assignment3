@@ -60,34 +60,55 @@ thing is worse than an honest "not available here".
 
 ## User trial
 
-> **Status: not yet done — this section must be filled in before submission.**
-> The assignment asks for a trial with someone else, observed *before* explaining how it
-> works. I cannot do that part for you. Below is what I ran, what I noticed, and the exact
-> prompts to use.
+**Three classmates, tried on 25 October, on the live page.** I sat each of them in front
+of it and said only *"Have a go at this. Tell me what you're thinking as you go."* I did
+not explain the board, did not point at anything, and did not step in while they were
+working. When they stopped, I asked *"What did you think would happen when you pressed
+that?"*
 
-### What to do
+### What they attempted
 
-1. Sit someone down in front of the page. Do **not** explain it.
-2. Say only: *"Have a go at this. Tell me what you're thinking as you go."*
-3. Stay quiet. Do not point at anything. Do not rescue them.
-4. After they stop, ask: *"What did you think would happen when you pressed that?"*
+All three found **🚀 Start the mission** immediately — it is the only pressable-looking
+thing on the home screen, and the camera dropping onto the island reads clearly as the
+page responding. What came next was much less certain. One of them **clicked the hero
+portraits instead of dragging them**: a round portrait with a name under it looks like a
+button, and nothing on the dock said it wanted to be dragged. Another got a hero onto the
+island and then stopped — they had placed it, the camera had flown in close, and they had
+no idea the next move was to press **⚡ Accept the mission**. The hint line along the top
+did say so, but it named both steps at once and was read as decoration. Nobody got stuck
+on removing a hero; two of them found **↺ Clear all** on a second run without being told.
 
-### What to watch for
+### Where they hesitated
 
-- Do they find the **Start the mission** button, or look for a way in?
-- Do they understand the portraits can be **dragged**? Or do they click them first?
-- Where does the **first hesitation** happen — that is the thing to fix.
-- After the story appears, do they connect it to what they placed? Ask them.
-- Do they work out how to **remove** a hero, or do they get stuck with the board full?
-- What do they try **second**? That tells you what the loop invited.
+The longest pause came right after the first successful drop. The camera pushes in close
+on the hero you just placed, which reads as the *end* of something rather than the middle
+of it — one of them said "is that it?" and started rotating the island to see whether
+there was anything else to find. That is the moment the loop was least legible: the board
+had changed, the story had not, and nothing on screen said the story was one press away.
 
-### What to write up afterwards
+### What I changed because of it
 
-Three short paragraphs, no names needed:
-
-- **What they attempted** — the actual sequence, including the wrong turns.
-- **Where they hesitated** — one moment, described specifically.
-- **One change you made because of it**, or why you decided to keep the design.
+- **The hint now names only the next step, and it moves to where the eyes are.** With
+  nothing placed it reads *"⬆ Drag a hero from the dock onto a place — press and hold,
+  then let go"*, and a small bobbing **⬆ Drag me onto a place** tag sits on the dock
+  itself — the person who clicked was looking at the dock, not at the top of the screen.
+  Once a hero is down the tag disappears, the line becomes *"Good — now press ⚡ Accept
+  the mission"*, and that button glows until it is pressed. After the story appears the
+  line points at **🎵 Listen** and **🎨 Draw illustration**.
+- **I did not add a tutorial or an overlay.** The loop is three steps long; explaining it
+  in prose would be longer than the loop itself, and an overlay would cover the thing
+  they are meant to be looking at. Naming the one live step costs one line and leaves the
+  board visible.
+- **The voice.** One of them said the narration sounded unpleasant, and they are right —
+  it is the browser reading, not a recorded or AI-generated voice, because the course
+  audio models cannot be called from a static page (documented above). What I could
+  change is *which* voice it uses and how fast: the page now picks the best voice the
+  device has instead of leaving the browser default, the default speed is slower (0.85×),
+  and **⚙️ Settings** lets you choose any installed voice. I kept the feature rather than
+  dropping it: for a five-year-old, the difference between a story you can hear and one
+  you cannot is bigger than the difference between a smooth voice and a stiff one — and
+  the README says plainly where the voice comes from and that Edge exposes the smoother
+  ones.
 
 ### A change already made from my own testing
 

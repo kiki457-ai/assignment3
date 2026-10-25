@@ -130,8 +130,30 @@
         .volume-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 12px; width: 12px; border-radius: 50%; background: #8B5CF6; cursor: pointer; margin-top: -4px; box-shadow: 0 0 8px rgba(139, 92, 246, 0.8); }
         .volume-slider::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
 
-        .dock { margin-top: auto; margin-bottom: 30px; align-self: center; padding: 15px 25px; display: flex; gap: 20px; pointer-events: auto; }
+        .dock { margin-top: auto; margin-bottom: 30px; align-self: center; padding: 15px 25px; display: flex; gap: 20px; pointer-events: auto; position: relative; }
         .dock-slot { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+        /* "Drag me" nudge: people clicked the heroes instead of dragging them,
+           so the dock says so until the first hero is actually placed. */
+        .dock-nudge {
+            position: absolute; left: 50%; top: -36px; transform: translateX(-50%);
+            background: rgba(139, 92, 246, 0.92); color: #FFF; font-size: 0.8rem; font-weight: 600;
+            padding: 6px 14px; border-radius: 14px; white-space: nowrap; pointer-events: none;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.35); animation: nudge-bob 1.7s ease-in-out infinite;
+        }
+        .dock-nudge::after {
+            content: ''; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
+            border-left: 6px solid transparent; border-right: 6px solid transparent;
+            border-top: 6px solid rgba(139, 92, 246, 0.92);
+        }
+        @keyframes nudge-bob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -8px); } }
+
+        /* The next step glows once it is actually available. */
+        .btn-ready { animation: ready-pulse 1.9s ease-in-out infinite; }
+        @keyframes ready-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+            50%      { box-shadow: 0 0 0 11px rgba(139, 92, 246, 0.26); }
+        }
         
         .piece-img-container {
             width: 65px; height: 65px; background: #E2E8F0; border: 3px solid #FFFFFF;
@@ -231,7 +253,7 @@
             <div class="top-bar pointer-auto">
                 <button class="back-btn" onclick="backToHome()">← Back</button>
                 <div class="hint-box">
-                    <span class="hint-text">Drag a hero onto a location, then press <b>Accept the mission</b></span>
+                    <span class="hint-text" id="step-hint">⬆ <b>Drag</b> a hero from the dock onto a place — press and hold, then let go</span>
                 </div>
                 <div id="mode-badge" class="mode-badge">Checking connection…</div>
                 <div style="display:flex; gap:15px; align-items: center;">
@@ -241,11 +263,12 @@
                         <input type="range" class="volume-slider" id="bgm-volume" min="0" max="1" step="0.01" value="0.5">
                     </div>
                     <button class="back-btn" style="margin:0;" onclick="clearAllPieces()">↺ Clear all</button>
-                    <button class="btn-primary" style="padding: 10px 25px; font-size:0.95rem; margin:0;" onclick="generateStory()">⚡ Accept the mission</button>
+                    <button class="btn-primary" id="btn-accept" style="padding: 10px 25px; font-size:0.95rem; margin:0;" onclick="generateStory()">⚡ Accept the mission</button>
                 </div>
             </div>
 
             <div class="glass-card dock pointer-auto">
+                <div class="dock-nudge" id="dock-nudge">⬆ Drag me onto a place</div>
                 <div class="dock-slot">
                     <div class="piece-img-container" data-id="gardener" data-name="Gardener">
                         <img src="assets/gardener.png" alt="Gardener" onerror="this.onerror=null; this.src='https://api.dicebear.com/7.x/bottts/svg?seed=g'">
@@ -289,10 +312,10 @@
             <input type="password" id="gatewayKey" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="sk-...">
             <p style="color:var(--text-sub); margin-top:15px;">Easel media key <span style="opacity:.6">(easel.ait4x.org — illustration & AI voice)</span></p>
             <input type="password" id="easelKey" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF" placeholder="paste the Easel key here...">
-            <p style="color:var(--text-sub); margin-top:15px;">Narration voice <span style="opacity:.6">(the voices installed in this browser — the neural ones are the smooth ones)</span></p>
+            <p style="color:var(--text-sub); margin-top:15px;">Narration voice <span style="opacity:.6">(the voices installed in this browser — the ones marked ★ natural are the smooth ones; Microsoft Edge offers the most)</span></p>
             <select id="voiceSelect" style="width:100%; padding:15px; border-radius:10px; border:none; background:rgba(0,0,0,0.3); color:#FFF"></select>
-            <p style="color:var(--text-sub); margin-top:15px;">Narration speed <span style="opacity:.6" id="rate-value">0.9×</span></p>
-            <input type="range" id="voiceRate" min="0.6" max="1.3" step="0.05" value="0.9" style="width:100%">
+            <p style="color:var(--text-sub); margin-top:15px;">Narration speed <span style="opacity:.6" id="rate-value">0.85×</span></p>
+            <input type="range" id="voiceRate" min="0.6" max="1.3" step="0.05" value="0.85" style="width:100%">
             <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
                 <button class="back-btn" onclick="closeModals()">Cancel</button>
                 <button class="btn-primary" style="padding: 10px 20px" onclick="saveSettings()">Save</button>
@@ -1053,9 +1076,11 @@
                         ev.stopPropagation();
                         marker.remove(); planetGroup.remove(charMesh); delete placedPieces[pieceId]; 
                         document.querySelector(`[data-id="${pieceId}"]`).style.opacity='1'; window.playSfx('pickup');
+                        updateStepHint();
                     };
                     
                     window.playSfx('drop'); dropSuccess = true;
+                    updateStepHint();
 
                     charMesh.userData.isHappy = true; charMesh.userData.animTimer = 0;
                     // Preset camera move
@@ -1069,6 +1094,28 @@
             window.addEventListener('mouseup', drop); window.addEventListener('touchend', drop);
 
             // ===== 10. UI and API wiring =====
+            // The one hint line says only the *next* step. In the trial two people
+            // got stuck: one clicked the heroes instead of dragging them, another
+            // placed a hero and then did not know what to do. So the nudge sits on
+            // the dock until a hero is placed, and afterwards the line points at
+            // Accept — which also glows while it is the live next step.
+            function updateStepHint() {
+                const placed = Object.keys(placedPieces).length;
+                const hint   = document.getElementById('step-hint');
+                const nudge  = document.getElementById('dock-nudge');
+                const accept = document.getElementById('btn-accept');
+                if (nudge)  nudge.style.display  = placed === 0 ? 'block' : 'none';
+                if (accept) accept.classList.toggle('btn-ready', placed > 0 && !currentStoryText);
+                if (!hint) return;
+                if (placed === 0) {
+                    hint.innerHTML = '⬆ <b>Drag</b> a hero from the dock onto a place — press and hold, then let go';
+                } else if (!currentStoryText) {
+                    hint.innerHTML = 'Good — now press <b>⚡ Accept the mission</b> to hear what happened there';
+                } else {
+                    hint.innerHTML = 'Press <b>🎵 Listen</b> to hear the story, or <b>🎨 Draw illustration</b>';
+                }
+            }
+
             window.toggleAudio = () => {
                 // Missing file: say so, rather than toggling a silent button.
                 if (!bgmAvailable) {
@@ -1094,6 +1141,7 @@
                 // start the background music and survive the autoplay policy
                 bgmAudio.play().catch(e => console.warn("Background music was blocked by the browser autoplay policy", e)); 
                 updateModeBadge();
+                updateStepHint();
             };
             window.backToHome = () => { 
                 isPlayMode = false; document.getElementById('home-ui').classList.remove('hidden'); document.getElementById('play-ui').classList.remove('active'); 
@@ -1119,6 +1167,7 @@
                 if (currentStoryAudio) { currentStoryAudio.pause(); currentStoryAudio = null; }
                 window.playSfx('pickup');
                 showToast(`${keys.length} hero${keys.length > 1 ? 'es' : ''} sent home — the island is clear`);
+                updateStepHint();
             };
 
             window.openSettings = () => { document.getElementById('settings-modal').classList.add('show'); window.playSfx('pickup'); };
@@ -1402,6 +1451,7 @@
                     currentStoryText = buildOfflineStory(piecesArray);
                     content.innerText = currentStoryText;
                     setStorySource('Offline story engine — the course AI service is not reachable, so the built-in engine answered instead.', 'demo');
+                    updateStepHint();
                     btnRead.style.display = 'block';
                     btnRetry.style.display = 'inline-block';
                     window.playSfx('drop');
@@ -1447,6 +1497,7 @@
                     if (!currentStoryText) throw new Error('the AI returned an empty story');
                     content.innerText = currentStoryText; 
                     setStorySource(`Written just now by the course AI service (${STORY_MODEL}).`, 'live');
+                    updateStepHint();
                     btnRead.style.display = 'block'; 
                     btnDraw.style.display = 'block'; 
                     window.playSfx('drop'); 
@@ -1467,6 +1518,7 @@
                     currentStoryText = buildOfflineStory(piecesArray);
                     content.innerText = currentStoryText;
                     setStorySource(`⚠️ ${errorMsg} Showing an offline story instead.`, 'demo');
+                    updateStepHint();
                     btnRead.style.display = 'block';
                     btnRetry.style.display = 'inline-block';
                 }
@@ -1679,7 +1731,7 @@
             }
             function narratorRate() {
                 const r = parseFloat(localStorage.getItem('narrator_rate'));
-                return isNaN(r) ? 0.9 : r;
+                return isNaN(r) ? 0.85 : r;
             }
             function refreshVoiceList() {
                 const sel = document.getElementById('voiceSelect');
